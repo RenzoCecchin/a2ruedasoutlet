@@ -9,6 +9,25 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=Black+Ops+One&display=swap" rel="stylesheet">
     <script>
+      // SHIM: Define process.env to prevent crashes in browser environment (Vercel/Static)
+      window.process = {
+        env: {
+          API_KEY: '', // Or inject via build time replacement
+          NODE_ENV: 'production'
+        }
+      };
+      
+      // Error Trap for White Screen Debugging
+      window.addEventListener('error', function(e) {
+        const root = document.getElementById('root');
+        if(root && root.innerHTML === '') {
+           console.error("App Crash:", e.error);
+           // Optional: Uncomment to see error on screen
+           // document.body.innerHTML = `<div style="color:red; padding:20px;"><h1>Error de Carga</h1><pre>${e.message}</pre></div>`;
+        }
+      });
+    </script>
+    <script>
       tailwind.config = {
         theme: {
           extend: {
@@ -36,7 +55,7 @@
         scroll-behavior: smooth;
       }
       body {
-        background-color: #f3f4f6; /* Changed from white to gray-100 */
+        background-color: #f3f4f6;
         color: #0a0a0a;
       }
       .no-scrollbar::-webkit-scrollbar {
@@ -67,5 +86,7 @@
 </head>
   <body>
     <div id="root"></div>
+    <!-- CRITICAL: Entry point for the React Application -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

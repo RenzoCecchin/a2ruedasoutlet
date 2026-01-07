@@ -47,7 +47,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password: string; // In a real app, never store plain text passwords
+  password?: string; // In a real app, never store plain text passwords
   role: 'admin' | 'customer';
   favorites?: string[]; // List of product IDs
 }
