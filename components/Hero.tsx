@@ -54,17 +54,19 @@ const Hero: React.FC = () => {
         </div>
       </div>
 
-      {/* Scroll Indicator */}
-      <a 
-        href="#shop"
-        onClick={handleScrollToShop}
-        className="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce hover:animate-none text-white/80 hover:text-white transition-all duration-300 cursor-pointer p-4 z-20"
-        aria-label="Ir al catálogo"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-10 h-10 drop-shadow-md">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-        </svg>
-      </a>
+      {/* Scroll Indicator - Centered via Flex Container to avoid transform conflicts with animate-bounce */}
+      <div className="absolute bottom-10 w-full flex justify-center z-20 pointer-events-none">
+        <a 
+          href="#shop"
+          onClick={handleScrollToShop}
+          className="animate-bounce hover:animate-none text-white/80 hover:text-white transition-all duration-300 cursor-pointer p-4 pointer-events-auto"
+          aria-label="Ir al catálogo"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-10 h-10 drop-shadow-md">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </a>
+      </div>
     </div>
   );
 };

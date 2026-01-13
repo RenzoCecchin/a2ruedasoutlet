@@ -58,10 +58,11 @@ const CheckoutModal: React.FC = () => {
   const generateWhatsAppOrder = () => {
     const orderNumber = Math.floor(Math.random() * 100000) + 10000; // 5 digit order ID
     
-    // Build Item List
+    // Build Item List with ID explicitly included
     const itemList = items.map(i => {
         const colorPart = i.selectedColor ? ` (Color: ${i.selectedColor})` : '';
-        return `• ${i.quantity}x ${i.name}${colorPart} - $${(i.price * i.quantity).toLocaleString('es-AR')}`;
+        // Added [ID: ${i.id}] to the message format
+        return `• [ID: ${i.id}] ${i.quantity}x ${i.name}${colorPart} - $${(i.price * i.quantity).toLocaleString('es-AR')}`;
     }).join('%0A');
     
     // Determine Payment Text
@@ -76,6 +77,7 @@ const CheckoutModal: React.FC = () => {
     const text = `*¡Hola A2RUEDAS! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *RESUMEN DEL PEDIDO:*%0A${itemList}%0A%0A💰 *TOTAL FINAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Dirección:* ${formData.address}, ${formData.city} (CP: ${formData.zip})%0A*Tel:* ${formData.phone}%0A%0A💳 *FORMA DE PAGO ELEGIDA:*%0A${methodText}%0A%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el envío?`;
 
     // Decrement stock from inventory (Local State)
+    // This ensures the stock goes down immediately in the app
     decrementStock(items.map(i => ({ id: i.id, quantity: i.quantity })));
 
     // WhatsApp Number

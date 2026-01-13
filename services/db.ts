@@ -8,12 +8,21 @@ const API_URL = 'http://127.0.0.1:3001/api';
 const MOCK_DB_KEY = 'a2ruedas_mock_db_users';
 
 const getMockUsers = (): User[] => {
-  const stored = localStorage.getItem(MOCK_DB_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(MOCK_DB_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    console.error("Mock DB Error", e);
+    return [];
+  }
 };
 
 const saveMockUsers = (users: User[]) => {
-  localStorage.setItem(MOCK_DB_KEY, JSON.stringify(users));
+  try {
+    localStorage.setItem(MOCK_DB_KEY, JSON.stringify(users));
+  } catch (e) {
+    console.error("Mock DB Save Error", e);
+  }
 };
 
 export const db = {
@@ -162,12 +171,19 @@ export const db = {
   // --- SESSION MANAGEMENT (Client Side) ---
   
   setSession: (user: User) => {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    } catch(e) { console.error("Session Save Error", e); }
   },
 
   getSession: (): User | null => {
-    const sessionStr = localStorage.getItem(SESSION_KEY);
-    return sessionStr ? JSON.parse(sessionStr) : null;
+    try {
+      const sessionStr = localStorage.getItem(SESSION_KEY);
+      return sessionStr ? JSON.parse(sessionStr) : null;
+    } catch (e) {
+      console.error("Session Read Error", e);
+      return null;
+    }
   },
 
   clearSession: () => {

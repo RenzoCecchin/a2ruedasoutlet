@@ -28,17 +28,26 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // Load cart from localStorage on mount
+  // Load cart from localStorage on mount with Error Handling
   useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setItems(JSON.parse(savedCart));
+    try {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) {
+        setItems(JSON.parse(savedCart));
+      }
+    } catch (e) {
+      console.error("Failed to parse cart from storage, resetting.", e);
+      localStorage.removeItem('cart');
     }
   }, []);
 
   // Save cart to localStorage on changes
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(items));
+    try {
+      localStorage.setItem('cart', JSON.stringify(items));
+    } catch (e) {
+      console.error("Failed to save cart", e);
+    }
   }, [items]);
 
   const addToCart = (product: Product, color?: string) => {

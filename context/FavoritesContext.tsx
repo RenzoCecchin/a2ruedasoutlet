@@ -20,9 +20,14 @@ export const FavoritesProvider: React.FC<{ children: ReactNode }> = ({ children 
   // 1. Initial Load (Guest)
   useEffect(() => {
     if (!user) {
-        const saved = localStorage.getItem('favorites');
-        if (saved) {
-            setFavorites(JSON.parse(saved));
+        try {
+          const saved = localStorage.getItem('favorites');
+          if (saved) {
+              setFavorites(JSON.parse(saved));
+          }
+        } catch(e) {
+          console.error("Favorites corrupted", e);
+          localStorage.removeItem('favorites');
         }
     }
   }, []);
@@ -37,11 +42,14 @@ export const FavoritesProvider: React.FC<{ children: ReactNode }> = ({ children 
         localStorage.setItem('favorites', JSON.stringify(serverFavorites));
       });
     } else {
-      // If user logs out, we might want to keep the local storage or clear it.
-      // For now, let's revert to whatever is in local storage (guest mode)
-      const saved = localStorage.getItem('favorites');
-      if (saved) setFavorites(JSON.parse(saved));
-      else setFavorites([]);
+      // If user logs out, revert to guest
+      try {
+        const saved = localStorage.getItem('favorites');
+        if (saved) setFavorites(JSON.parse(saved));
+        else setFavorites([]);
+      } catch(e) {
+        setFavorites([]);
+      }
     }
   }, [user]);
 
@@ -55,7 +63,9 @@ export const FavoritesProvider: React.FC<{ children: ReactNode }> = ({ children 
       }
 
       // Always save to localStorage (works for guest and as cache)
-      localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      try {
+        localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      } catch(e) {}
 
       // If User is Logged In, Sync to Server
       if (user) {

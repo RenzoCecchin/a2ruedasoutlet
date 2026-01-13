@@ -18,9 +18,14 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Initialize state lazy-loading from localStorage or falling back to constants
   const [products, setProducts] = useState<Product[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error("Inventory corrupted, using defaults.", e);
+        // Do not remove logic here, simply return default
       }
     }
     // Constants now include stock
@@ -29,7 +34,11 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Save to localStorage whenever products change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    } catch(e) {
+      console.error("Failed to save inventory", e);
+    }
   }, [products]);
 
   const updateProduct = (id: string, updatedProduct: Partial<Product>) => {
