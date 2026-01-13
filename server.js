@@ -177,8 +177,29 @@ app.put('/api/users/:userId/favorites', (req, res) => {
   }
 });
 
+// --- SERVE STATIC FRONTEND (Optional: if built via npm run build) ---
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Fallback for SPA routing if accessing via Node server
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+     const indexPath = path.join(__dirname, 'dist', 'index.html');
+     if (fs.existsSync(indexPath)) {
+       res.sendFile(indexPath);
+     } else {
+       res.status(200).send(`
+         <div style="font-family:sans-serif; text-align:center; padding:50px;">
+           <h1>Server Running (API Port ${PORT})</h1>
+           <p>To see the app, please keep this running and open a new terminal to run: <b>npm run dev</b></p>
+         </div>
+       `);
+     }
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
-  console.log(`Server running locally on http://localhost:${PORT}`);
-  console.log(`Admin Account: Mica@motos.com / Mandino`);
+  console.log(`✅ Backend Server running at http://localhost:${PORT}`);
+  console.log(`👤 Admin Account: Mica@motos.com / Mandino`);
+  console.log(`ℹ️  Note: Frontend runs separately via "npm run dev"`);
 });
