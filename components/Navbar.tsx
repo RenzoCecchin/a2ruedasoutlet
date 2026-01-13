@@ -7,6 +7,7 @@ const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
   
   const { cartCount, toggleCart } = useCart();
   const { favorites, toggleFavoritesDrawer } = useFavorites();
@@ -20,6 +21,36 @@ const Navbar: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [cartCount]);
+
+  // PWA Install Prompt Listener
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    // Show the install prompt
+    installPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    } else {
+      console.log('User dismissed the install prompt');
+    }
+    setInstallPrompt(null);
+  };
 
   const handleSearchClick = () => {
     const shopSection = document.getElementById('shop');
@@ -93,6 +124,19 @@ const Navbar: React.FC = () => {
             <a href="#" onClick={scrollToTop} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">INICIO</a>
             <a href="#shop" onClick={handleShopClick} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">TIENDA</a>
             
+            {/* Install App Button (Desktop) */}
+            {installPrompt && (
+              <button 
+                onClick={handleInstallClick}
+                className="bg-moto-green hover:bg-moto-greenDark text-white text-xs font-bold px-4 py-2 rounded-full transition-colors flex items-center gap-2 animate-pulse shadow-md"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Instalar App
+              </button>
+            )}
+
             <div className="flex items-center space-x-4 ml-4">
               <button 
                 onClick={handleSearchClick}
@@ -210,6 +254,19 @@ const Navbar: React.FC = () => {
         <div className="md:hidden bg-white border-t border-gray-100 absolute w-full left-0 shadow-xl max-h-[85vh] overflow-y-auto animate-fade-in">
           <div className="px-4 pt-4 pb-6 space-y-2">
             
+            {/* Install App Button (Mobile Menu) */}
+            {installPrompt && (
+              <button 
+                onClick={() => { handleInstallClick(); setIsOpen(false); }}
+                className="w-full mb-3 bg-moto-green text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 animate-pulse shadow-md"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Instalar Aplicación
+              </button>
+            )}
+
             {/* Main Navigation */}
             <a href="#" onClick={(e) => { scrollToTop(e); setIsOpen(false); }} className="block px-4 py-3 rounded-lg text-base font-medium text-gray-800 hover:bg-gray-50 active:bg-gray-100">
               INICIO
