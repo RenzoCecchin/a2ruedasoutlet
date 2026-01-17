@@ -7,6 +7,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Enable PWA in development mode for testing the install button
+      devOptions: {
+        enabled: true
+      },
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
         name: 'A2RUEDASOUTLET',
@@ -20,13 +24,13 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'https://cdn-icons-png.flaticon.com/512/3097/3097007.png', // Placeholder icon for PWA
+            src: 'https://cdn-icons-png.flaticon.com/512/3097/3097007.png', 
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: 'https://cdn-icons-png.flaticon.com/512/3097/3097007.png', // Placeholder icon for PWA
+            src: 'https://cdn-icons-png.flaticon.com/512/3097/3097007.png', 
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
@@ -34,7 +38,6 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Caching strategies for performance and offline support
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -43,7 +46,7 @@ export default defineConfig({
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -57,7 +60,7 @@ export default defineConfig({
               cacheName: 'gstatic-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
