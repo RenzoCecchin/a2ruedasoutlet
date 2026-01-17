@@ -5,6 +5,7 @@ import { useProducts } from '../context/ProductContext';
 
 type CheckoutStep = 'shipping' | 'payment' | 'processing' | 'success';
 type PaymentMethod = 'transfer' | 'mercadopago' | 'cash';
+type ShippingMethod = 'andreani' | 'pickup';
 
 const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, closeCheckout, cartTotal, items, clearCart } = useCart();
@@ -13,6 +14,7 @@ const CheckoutModal: React.FC = () => {
   
   const [step, setStep] = useState<CheckoutStep>('shipping');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('andreani');
   
   // Form Data
   const [formData, setFormData] = useState({
@@ -40,6 +42,7 @@ const CheckoutModal: React.FC = () => {
   useEffect(() => {
     if (isCheckoutOpen) {
       setStep('shipping');
+      setShippingMethod('andreani');
     }
   }, [isCheckoutOpen]);
 
@@ -61,24 +64,34 @@ const CheckoutModal: React.FC = () => {
     // Build Item List with ID explicitly included
     const itemList = items.map(i => {
         const colorPart = i.selectedColor ? ` (Color: ${i.selectedColor})` : '';
-        // Added [ID: ${i.id}] to the message format
-        return `• [ID: ${i.id}] ${i.quantity}x ${i.name}${colorPart} - $${(i.price * i.quantity).toLocaleString('es-AR')}`;
+        // Format: • 1x Producto (ID: 123) - $Precio
+        return `• ${i.quantity}x ${i.name}${colorPart} (ID: ${i.id}) - $${(i.price * i.quantity).toLocaleString('es-AR')}`;
     }).join('%0A');
     
     // Determine Payment Text
     let methodText = '';
     switch (paymentMethod) {
-        case 'transfer': methodText = '🏦 Transferencia Bancaria (Envío comprobante)'; break;
-        case 'mercadopago': methodText = '💳 Tarjeta / Mercado Pago (Solicito Link)'; break;
-        case 'cash': methodText = '💵 Efectivo / A convenir'; break;
+        case 'transfer': methodText = 'Transferencia Bancaria'; break;
+        case 'mercadopago': methodText = 'Tarjeta / Mercado Pago'; break;
+        case 'cash': methodText = 'Efectivo / A convenir'; break;
+    }
+
+    // Determine Shipping Text
+    let shippingText = '';
+    let addressText = '';
+    
+    if (shippingMethod === 'andreani') {
+        shippingText = '🚚 *MÉTODO DE ENTREGA:* Andreani a Domicilio';
+        addressText = `📍 *DIRECCIÓN DE ENVÍO:*%0A${formData.address}, ${formData.city} (CP: ${formData.zip})`;
+    } else {
+        shippingText = '🏬 *MÉTODO DE ENTREGA:* Retiro en Local (Córdoba)';
+        addressText = ''; // No address needed for pickup in message
     }
 
     // Build Final Message
-    // Updated greeting as requested
-    const text = `*¡Hola A2RUEDASOUTLET! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *RESUMEN DEL PEDIDO:*%0A${itemList}%0A%0A💰 *TOTAL FINAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Dirección:* ${formData.address}, ${formData.city} (CP: ${formData.zip})%0A*Tel:* ${formData.phone}%0A%0A💳 *FORMA DE PAGO ELEGIDA:*%0A${methodText}%0A%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el envío?`;
+    const text = `*¡Hola A2RUEDASOUTLET! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *MIS PRODUCTOS:*%0A${itemList}%0A%0A💰 *TOTAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A💳 *MEDIO DE PAGO:* ${methodText}%0A${shippingText}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Tel:* ${formData.phone}%0A${addressText ? addressText + '%0A' : ''}%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el pago?`;
 
     // Decrement stock from inventory (Local State)
-    // This ensures the stock goes down immediately in the app
     decrementStock(items.map(i => ({ id: i.id, quantity: i.quantity })));
 
     // WhatsApp Number
@@ -115,7 +128,7 @@ const CheckoutModal: React.FC = () => {
                 FINALIZAR COMPRA
             </h2>
             <p className="text-xs text-gray-400">
-               {step === 'shipping' && 'Paso 1: Datos de Envío'}
+               {step === 'shipping' && 'Paso 1: Envío y Datos'}
                {step === 'payment' && 'Paso 2: Forma de Pago'}
                {step === 'processing' && 'Generando pedido...'}
                {step === 'success' && '¡Todo listo!'}
@@ -133,79 +146,144 @@ const CheckoutModal: React.FC = () => {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-gray-50">
           
-          {/* STEP 1: SHIPPING */}
+          {/* STEP 1: SHIPPING & DATA */}
           {step === 'shipping' && (
-            <form onSubmit={handleShippingSubmit} className="space-y-6 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Completo</label>
-                  <input
-                    name="name"
-                    required
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
-                    placeholder="Tu nombre y apellido"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dirección de Entrega</label>
-                  <input
-                    name="address"
-                    required
-                    placeholder="Calle, Número, Piso, Dpto"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
-                  />
-                </div>
+            <form onSubmit={handleShippingSubmit} className="space-y-6">
+              
+              {/* Shipping Method Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <label className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    shippingMethod === 'andreani' ? 'border-moto-green bg-white shadow-md' : 'border-gray-200 bg-gray-50 hover:bg-white'
+                }`}>
+                    <input 
+                        type="radio" 
+                        name="shippingMethod" 
+                        className="absolute opacity-0" 
+                        checked={shippingMethod === 'andreani'}
+                        onChange={() => setShippingMethod('andreani')}
+                    />
+                    <div className="flex flex-col items-center text-center gap-2">
+                        <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-moto-black shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span className="block font-bold text-sm text-gray-900">Envío Andreani</span>
+                            <span className="text-xs text-gray-500">A todo el país</span>
+                        </div>
+                        {shippingMethod === 'andreani' && <div className="absolute top-2 right-2 text-moto-green"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg></div>}
+                    </div>
+                </label>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Ciudad / Localidad</label>
-                  <input
-                    name="city"
-                    required
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
-                  />
-                </div>
+                <label className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    shippingMethod === 'pickup' ? 'border-moto-green bg-white shadow-md' : 'border-gray-200 bg-gray-50 hover:bg-white'
+                }`}>
+                    <input 
+                        type="radio" 
+                        name="shippingMethod" 
+                        className="absolute opacity-0" 
+                        checked={shippingMethod === 'pickup'}
+                        onChange={() => setShippingMethod('pickup')}
+                    />
+                    <div className="flex flex-col items-center text-center gap-2">
+                        <div className="w-10 h-10 bg-moto-black rounded-full flex items-center justify-center text-white shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span className="block font-bold text-sm text-gray-900">Retiro en Local</span>
+                            <span className="text-xs text-gray-500">Córdoba Capital</span>
+                        </div>
+                        {shippingMethod === 'pickup' && <div className="absolute top-2 right-2 text-moto-green"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg></div>}
+                    </div>
+                </label>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Código Postal</label>
-                  <input
-                    name="zip"
-                    required
-                    value={formData.zip}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
-                  />
-                </div>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Completo</label>
+                    <input
+                        name="name"
+                        required
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
+                        placeholder="Tu nombre y apellido"
+                    />
+                    </div>
+                    
+                    {/* Address Fields - Only if Andreani */}
+                    {shippingMethod === 'andreani' ? (
+                        <>
+                            <div className="md:col-span-2 animate-fade-in">
+                                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dirección de Entrega</label>
+                                <input
+                                    name="address"
+                                    required
+                                    placeholder="Calle, Número, Piso, Dpto"
+                                    value={formData.address}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
+                                />
+                            </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">WhatsApp / Teléfono</label>
-                  <input
-                    name="phone"
-                    required
-                    type="tel"
-                    placeholder="Ej: 351 123 4567"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">Te contactaremos a este número para coordinar.</p>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Notas del pedido (Opcional)</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    placeholder="Aclaraciones sobre el envío, horarios, etc."
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all resize-none h-20"
-                  />
+                            <div className="animate-fade-in">
+                                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Ciudad / Localidad</label>
+                                <input
+                                    name="city"
+                                    required
+                                    value={formData.city}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
+                                />
+                            </div>
+
+                            <div className="animate-fade-in">
+                                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Código Postal</label>
+                                <input
+                                    name="zip"
+                                    required
+                                    value={formData.zip}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-600 animate-fade-in">
+                            <p className="font-bold text-moto-black mb-1">📍 Punto de Retiro:</p>
+                            <p>Te esperamos en nuestro local en Córdoba Capital.</p>
+                            <p className="text-xs mt-1">Coordinaremos el horario por WhatsApp.</p>
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">WhatsApp / Teléfono</label>
+                    <input
+                        name="phone"
+                        required
+                        type="tel"
+                        placeholder="Ej: 351 123 4567"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Te contactaremos a este número para coordinar.</p>
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Notas del pedido (Opcional)</label>
+                    <textarea
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleInputChange}
+                        placeholder="Aclaraciones..."
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-white transition-all resize-none h-20"
+                    />
+                    </div>
                 </div>
               </div>
 
