@@ -2,15 +2,30 @@ import { User } from '../types';
 
 const SESSION_KEY = 'a2ruedas_session';
 const API_URL = 'http://127.0.0.1:3001/api';
-
-// --- LOCAL STORAGE MOCK HELPER (Fallback) ---
-// Used when backend server is offline (e.g., Vercel Demo)
 const MOCK_DB_KEY = 'a2ruedas_mock_db_users';
+
+// --- HELPER FUNCTIONS ---
+
+// Simulate network delay for better UX (spinners)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getMockUsers = (): User[] => {
   try {
     const stored = localStorage.getItem(MOCK_DB_KEY);
-    return stored ? JSON.parse(stored) : [];
+    // Initialize with Admin if empty
+    if (!stored) {
+      const initialUsers = [{
+        id: 'admin-1',
+        name: 'Admin MotoElite',
+        email: 'Mica@motos.com',
+        password: 'Mandino',
+        role: 'admin' as const,
+        favorites: []
+      }];
+      localStorage.setItem(MOCK_DB_KEY, JSON.stringify(initialUsers));
+      return initialUsers;
+    }
+    return JSON.parse(stored);
   } catch (e) {
     console.error("Mock DB Error", e);
     return [];
@@ -26,64 +41,78 @@ const saveMockUsers = (users: User[]) => {
 };
 
 export const db = {
-  // --- API CALLS (Server Side with Fallback) ---
+  // --- AUTHENTICATION ---
 
   login: async (email: string, password: string): Promise<User> => {
     try {
-      // Try fetch first
+      // 1. Try Backend API
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout to switch to local
+
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Only throw if it's a real server error (401), not a connection error
         if (response.status === 401) throw new Error('Credenciales inválidas');
-        // If 404 or other, assume network issue and fall through to catch
-        if (response.status !== 404) throw new Error('Error de servidor');
+        throw new Error('Error de conexión con servidor');
       }
       return await response.json();
 
     } catch (error: any) {
-      console.warn("Backend unreached, trying Local Mock...", error);
+      console.warn("Backend unavailable, using Local DB. Reason:", error.message);
       
-      // FALLBACK: LocalStorage Mock
+      // 2. Fallback: Robust Local DB
+      await delay(800); // Simulate network processing
+      
       const users = getMockUsers();
-      // Add default admin if not exists in mock
-      if (!users.some(u => u.email === 'Mica@motos.com')) {
-         users.push({ id: 'admin-1', name: 'Admin MotoElite', email: 'Mica@motos.com', password: 'Mandino', role: 'admin', favorites: [] });
-         saveMockUsers(users);
-      }
+      // Case insensitive email check
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
+      if (user && user.password === password) {
         const { password: _, ...userWithoutPass } = user;
         return userWithoutPass;
       } else {
-        throw new Error('Credenciales inválidas (Modo Demo)');
+        throw new Error('Email o contraseña incorrectos.');
       }
     }
   },
 
   register: async (userPayload: Omit<User, 'id' | 'role'>): Promise<User> => {
     try {
+      // 1. Try Backend API
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userPayload),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
-      if (!response.ok) throw new Error('Error al registrarse');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al registrarse en el servidor');
+      }
       return await response.json();
 
     } catch (error: any) {
-      console.warn("Backend unreached, using Local Mock for Register");
+      console.warn("Backend unavailable, using Local DB for Register.");
       
-      // FALLBACK: LocalStorage Mock
+      // 2. Fallback: Robust Local DB
+      await delay(1000); // Simulate creation time
+
       const users = getMockUsers();
-      if (users.some(u => u.email === userPayload.email)) {
-        throw new Error('El email ya está registrado (Modo Demo)');
+      
+      // Validate duplicate email locally
+      if (users.some(u => u.email.toLowerCase() === userPayload.email.toLowerCase())) {
+        throw new Error('Este email ya está registrado.');
       }
 
       const newUser: User = {
@@ -111,7 +140,8 @@ export const db = {
         body: JSON.stringify({ email }),
       });
     } catch (error) {
-      console.log("Mock Forgot Password: Code sent to console (F12)");
+      await delay(500);
+      console.log(`[LOCAL MOCK] Recovery code sent to console for: ${email}`);
     }
   },
 
@@ -123,27 +153,28 @@ export const db = {
         body: JSON.stringify({ email, code, newPassword }),
       });
     } catch (error) {
-        // Fallback Mock Logic
-        const users = getMockUsers();
-        const idx = users.findIndex(u => u.email === email);
-        if(idx !== -1) {
-            users[idx].password = newPassword;
-            saveMockUsers(users);
-        } else {
-            throw new Error("Usuario no encontrado (Modo Demo)");
-        }
+      // Local Mock Reset
+      await delay(800);
+      const users = getMockUsers();
+      const idx = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+      
+      if(idx !== -1) {
+          users[idx].password = newPassword;
+          saveMockUsers(users);
+      } else {
+          throw new Error("Usuario no encontrado.");
+      }
     }
   },
 
-  // --- FAVORITES (Server Side with Fallback) ---
+  // --- FAVORITES (Sync logic) ---
 
   getFavorites: async (userId: string): Promise<string[]> => {
     try {
       const response = await fetch(`${API_URL}/users/${userId}/favorites`);
-      if (!response.ok) throw new Error('Failed to fetch');
+      if (!response.ok) throw new Error('Network error');
       return await response.json();
     } catch (error) {
-      // Fallback
       const users = getMockUsers();
       const user = users.find(u => u.id === userId);
       return user?.favorites || [];
@@ -152,23 +183,26 @@ export const db = {
 
   saveFavorites: async (userId: string, favorites: string[]): Promise<void> => {
     try {
-      await fetch(`${API_URL}/users/${userId}/favorites`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ favorites }),
-      });
-    } catch (error) {
-      // Fallback
+      // Save locally first (optimistic UI)
       const users = getMockUsers();
       const idx = users.findIndex(u => u.id === userId);
       if (idx !== -1) {
         users[idx].favorites = favorites;
         saveMockUsers(users);
       }
+
+      // Try server sync silently
+      await fetch(`${API_URL}/users/${userId}/favorites`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorites }),
+      });
+    } catch (error) {
+      // Silent fail, local storage is the source of truth when offline
     }
   },
 
-  // --- SESSION MANAGEMENT (Client Side) ---
+  // --- SESSION (Browser Cache) ---
   
   setSession: (user: User) => {
     try {

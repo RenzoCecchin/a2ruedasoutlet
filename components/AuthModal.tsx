@@ -45,28 +45,46 @@ const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
+  const validateForm = () => {
+    if (!email.includes('@')) {
+      setError('Por favor, ingresa un email válido.');
+      return false;
+    }
+    if (view !== 'forgot' && password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return false;
+    }
+    if (view === 'register' && name.trim().length < 2) {
+      setError('Por favor, ingresa tu nombre completo.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+
+    if (!validateForm()) return;
+
     setIsLoading(true);
 
     try {
       if (view === 'login') {
         await login(email, password);
+        // Login closes modal automatically in Context, no need to set successMsg here usually
       } else if (view === 'register') {
         await register(name, email, password);
+        // Register also logs in and closes modal
       } else if (view === 'forgot') {
         if (forgotStep === 'email') {
-          // Step 1: Request Code
           await recoverPassword(email);
-          setForgotStep('reset'); // Move to step 2
-          setSuccessMsg('Código enviado. Revisa la consola del servidor (negra).');
+          setForgotStep('reset');
+          setSuccessMsg('Código enviado. Revisa la consola (F12) o tu email.');
         } else {
-          // Step 2: Verify Code & Reset
           await resetPassword(email, resetCode, newPassword);
-          setSuccessMsg('¡Contraseña restablecida con éxito! Inicia sesión.');
-          // Delay to switch to login view automatically
+          setSuccessMsg('¡Contraseña restablecida! Inicia sesión.');
           setTimeout(() => {
              setView('login');
              setSuccessMsg('');
@@ -75,7 +93,7 @@ const AuthModal: React.FC = () => {
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Ocurrió un error');
+      setError(err.message || 'Ocurrió un error inesperado.');
     } finally {
       setIsLoading(false);
     }
@@ -85,20 +103,18 @@ const AuthModal: React.FC = () => {
     setView(newView);
     setError('');
     setSuccessMsg('');
-    setForgotStep('email'); // Reset forgot flow
+    setForgotStep('email');
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={closeAuthModal}
       ></div>
 
-      {/* Modal Card */}
       <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
-        {/* Header Tabs (Hidden in forgot mode) */}
+        {/* Header Tabs */}
         {view !== 'forgot' && (
           <div className="flex text-center border-b border-gray-100">
             <button 
@@ -120,7 +136,7 @@ const AuthModal: React.FC = () => {
           </div>
         )}
 
-        {/* Forgot Password Header */}
+        {/* Forgot Header */}
         {view === 'forgot' && (
           <div className="bg-moto-black text-white p-4 flex items-center">
             <button 
@@ -142,21 +158,20 @@ const AuthModal: React.FC = () => {
             </h2>
             <p className="text-gray-500 text-sm">
               {view === 'login' && 'Bienvenido de nuevo, piloto.'}
-              {view === 'register' && 'Únete a la comunidad.'}
-              {view === 'forgot' && forgotStep === 'email' && 'Ingresa tu email para recibir el código.'}
-              {view === 'forgot' && forgotStep === 'reset' && 'Ingresa el código y tu nueva contraseña.'}
+              {view === 'register' && 'Crea tu cuenta para guardar favoritos.'}
+              {view === 'forgot' && forgotStep === 'email' && 'Te enviaremos un código de recuperación.'}
+              {view === 'forgot' && forgotStep === 'reset' && 'Restablece tu acceso.'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* NAME FIELD (REGISTER) */}
+            {/* REGISTER: Name */}
             {view === 'register' && (
               <div className="animate-fade-in">
                 <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Completo</label>
                 <input
                   type="text"
-                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-gray-50"
@@ -165,13 +180,12 @@ const AuthModal: React.FC = () => {
               </div>
             )}
             
-            {/* EMAIL FIELD (LOGIN, REGISTER, FORGOT STEP 1) */}
+            {/* EMAIL */}
             {(view !== 'forgot' || (view === 'forgot' && forgotStep === 'email')) && (
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Email</label>
                 <input
                   type="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={view === 'forgot' && forgotStep === 'reset'} 
@@ -181,7 +195,7 @@ const AuthModal: React.FC = () => {
               </div>
             )}
 
-            {/* PASSWORD FIELD (LOGIN, REGISTER) */}
+            {/* PASSWORD */}
             {view !== 'forgot' && (
               <div className="animate-fade-in">
                 <div className="flex justify-between items-center mb-1">
@@ -198,26 +212,24 @@ const AuthModal: React.FC = () => {
                 </div>
                 <input
                   type="password"
-                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-gray-50"
-                  placeholder="••••••••"
+                  placeholder="Mínimo 6 caracteres"
                 />
               </div>
             )}
 
-            {/* FORGOT PASSWORD STEP 2: CODE & NEW PASSWORD */}
+            {/* FORGOT STEP 2 */}
             {view === 'forgot' && forgotStep === 'reset' && (
                 <div className="animate-fade-in space-y-4">
                     <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100">
-                        Código enviado a <strong>{email}</strong>. Revisa la consola del servidor.
+                        Código enviado a <strong>{email}</strong>.
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Código de Recuperación</label>
                         <input
                             type="text"
-                            required
                             value={resetCode}
                             onChange={(e) => setResetCode(e.target.value)}
                             className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-gray-50 text-center tracking-widest font-bold"
@@ -229,7 +241,6 @@ const AuthModal: React.FC = () => {
                         <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nueva Contraseña</label>
                         <input
                             type="password"
-                            required
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-moto-green focus:ring-1 focus:ring-moto-green outline-none bg-gray-50"
@@ -239,7 +250,7 @@ const AuthModal: React.FC = () => {
                 </div>
             )}
 
-            {/* MESSAGES */}
+            {/* ERROR MESSAGE */}
             {error && (
               <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-center gap-2 animate-fade-in">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 flex-shrink-0">
@@ -249,6 +260,7 @@ const AuthModal: React.FC = () => {
               </div>
             )}
 
+            {/* SUCCESS MESSAGE */}
             {successMsg && (
               <div className="p-3 bg-green-50 border border-green-100 text-green-700 text-sm rounded-lg flex items-center gap-2 animate-fade-in">
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 flex-shrink-0">
@@ -263,9 +275,12 @@ const AuthModal: React.FC = () => {
               disabled={isLoading}
               className="w-full bg-moto-green hover:bg-moto-greenDark text-white font-bold py-4 rounded-xl uppercase tracking-wider shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-              
-              {!isLoading && (
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Procesando...</span>
+                </div>
+              ) : (
                 <>
                   {view === 'login' && 'Ingresar'}
                   {view === 'register' && 'Crear Cuenta'}
