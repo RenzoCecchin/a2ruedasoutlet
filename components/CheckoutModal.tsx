@@ -74,8 +74,8 @@ const CheckoutModal: React.FC = () => {
     }
 
     // Build Final Message
-    // Changed greeting as requested to: ¡HOLA! A2RUEDASOUTLET
-    const text = `*¡HOLA! A2RUEDASOUTLET* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *RESUMEN DEL PEDIDO:*%0A${itemList}%0A%0A💰 *TOTAL FINAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Dirección:* ${formData.address}, ${formData.city} (CP: ${formData.zip})%0A*Tel:* ${formData.phone}%0A%0A💳 *FORMA DE PAGO ELEGIDA:*%0A${methodText}%0A%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el envío?`;
+    // Updated greeting as requested
+    const text = `*¡Hola A2RUEDASOUTLET! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *RESUMEN DEL PEDIDO:*%0A${itemList}%0A%0A💰 *TOTAL FINAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Dirección:* ${formData.address}, ${formData.city} (CP: ${formData.zip})%0A*Tel:* ${formData.phone}%0A%0A💳 *FORMA DE PAGO ELEGIDA:*%0A${methodText}%0A%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el envío?`;
 
     // Decrement stock from inventory (Local State)
     // This ensures the stock goes down immediately in the app
