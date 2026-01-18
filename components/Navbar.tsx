@@ -9,7 +9,9 @@ const Navbar: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showIOSModal, setShowIOSModal] = useState(false);
+  const [showAndroidModal, setShowAndroidModal] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   
   const { cartCount, toggleCart } = useCart();
@@ -31,16 +33,18 @@ const Navbar: React.FC = () => {
     const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
     setIsStandalone(isInStandaloneMode);
 
-    // 2. Enhanced iOS Detection
-    // Checks User Agent and Platform for robustness
+    // 2. Device Detection
     const userAgent = window.navigator.userAgent.toLowerCase();
     const platform = (window.navigator as any).platform?.toLowerCase() || '';
     
+    // iOS detection
     const isIphone = /iphone|ipod/.test(userAgent);
     const isIpad = /ipad/.test(userAgent) || (platform.includes('mac') && navigator.maxTouchPoints > 1);
-    
-    const isIOSDevice = isIphone || isIpad;
-    setIsIOS(isIOSDevice);
+    setIsIOS(isIphone || isIpad);
+
+    // Android detection
+    const isAndroidDevice = /android/i.test(userAgent);
+    setIsAndroid(isAndroidDevice);
 
     // 3. Standard PWA prompt for Android/Desktop
     const handleBeforeInstallPrompt = (e: any) => {
@@ -56,21 +60,26 @@ const Navbar: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
+    // iOS Manual Instructions
     if (isIOS) {
       setShowIOSModal(true);
       return;
     }
 
-    if (!installPrompt) {
-        console.log("No install prompt available");
+    // Android/Desktop: Try automatic prompt first
+    if (installPrompt) {
+        installPrompt.prompt();
+        const { outcome } = await installPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('User accepted PWA');
+            setInstallPrompt(null);
+        }
         return;
     }
-    
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') {
-        console.log('User accepted PWA');
-        setInstallPrompt(null);
+
+    // Android Fallback: If no prompt available (e.g. dismissed before), show manual instructions
+    if (isAndroid) {
+        setShowAndroidModal(true);
     }
   };
 
@@ -93,9 +102,11 @@ const Navbar: React.FC = () => {
   };
 
   // Logic to determine if we show the button
-  // Don't show if already installed (isStandalone)
-  // Show if we have the prompt (Android/Desktop) OR if it is iOS (since iOS doesn't give us a prompt, we always offer the manual instructions)
-  const showInstallButton = !isStandalone && (!!installPrompt || isIOS);
+  // Show if:
+  // 1. Not installed AND
+  // 2. (We have a prompt ready OR it's iOS OR it's Android)
+  // This ensures Android users see the button even if the event fires late or failed.
+  const showInstallButton = !isStandalone && (!!installPrompt || isIOS || isAndroid);
 
   return (
     <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 transition-all duration-300">
@@ -240,6 +251,49 @@ const Navbar: React.FC = () => {
 
               <button 
                 onClick={() => setShowIOSModal(false)}
+                className="w-full mt-8 bg-moto-green text-white font-bold py-3 rounded-xl shadow-lg"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Android Manual Instruction Modal (Fallback) */}
+      {showAndroidModal && (
+        <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAndroidModal(false)}></div>
+          <div className="relative bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl p-8 animate-fade-in-up">
+            <button onClick={() => setShowAndroidModal(false)} className="absolute top-4 right-4 text-gray-400">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-moto-light rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-100 shadow-sm">
+                 <img src="https://cdn-icons-png.flaticon.com/512/3097/3097007.png" className="w-10 h-10" alt="logo" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Instalar en Android</h3>
+              <p className="text-gray-500 text-sm mb-6">Si no aparece la instalación automática, sigue estos pasos en Chrome:</p>
+              
+              <div className="space-y-6 text-left">
+                <div className="flex items-center gap-4">
+                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-moto-black text-white flex items-center justify-center font-bold">1</div>
+                   <p className="text-sm text-gray-700 flex items-center gap-2">
+                     Toca el menú de tres puntos <strong className="text-lg leading-none">⋮</strong> arriba a la derecha.
+                   </p>
+                </div>
+                <div className="flex items-center gap-4">
+                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-moto-black text-white flex items-center justify-center font-bold">2</div>
+                   <p className="text-sm text-gray-700">Selecciona <strong>"Instalar aplicación"</strong> o <strong>"Agregar a la pantalla principal"</strong>.</p>
+                </div>
+                <div className="flex items-center gap-4">
+                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-moto-black text-white flex items-center justify-center font-bold">3</div>
+                   <p className="text-sm text-gray-700">Confirma tocando <strong>"Instalar"</strong>.</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowAndroidModal(false)}
                 className="w-full mt-8 bg-moto-green text-white font-bold py-3 rounded-xl shadow-lg"
               >
                 Entendido
