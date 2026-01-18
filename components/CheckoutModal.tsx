@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
 
 type CheckoutStep = 'shipping' | 'payment' | 'processing' | 'success';
-type PaymentMethod = 'transfer' | 'mercadopago' | 'cash';
+type PaymentMethod = 'transfer' | 'mercadopago';
 type ShippingMethod = 'andreani' | 'pickup';
 
 const CheckoutModal: React.FC = () => {
@@ -73,7 +73,6 @@ const CheckoutModal: React.FC = () => {
     switch (paymentMethod) {
         case 'transfer': methodText = 'Transferencia Bancaria'; break;
         case 'mercadopago': methodText = 'Tarjeta / Mercado Pago'; break;
-        case 'cash': methodText = 'Efectivo / A convenir'; break;
     }
 
     // Determine Shipping Text
@@ -361,27 +360,6 @@ const CheckoutModal: React.FC = () => {
                             ℹ️ Te enviaremos un <strong>Link de Pago Seguro</strong> a tu WhatsApp al confirmar el pedido.
                         </div>
                     )}
-                  </div>
-                </label>
-
-                {/* Option 3: Cash / Other */}
-                <label 
-                  className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-4 ${
-                    paymentMethod === 'cash' ? 'border-moto-green bg-green-50/50' : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    name="payment" 
-                    className="mt-1 accent-moto-green"
-                    checked={paymentMethod === 'cash'} 
-                    onChange={() => setPaymentMethod('cash')}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-gray-900">A convenir / Efectivo</span>
-                    </div>
-                    <p className="text-xs text-gray-500">Coordinar pago al retirar o contra entrega (si está disponible).</p>
                   </div>
                 </label>
 
