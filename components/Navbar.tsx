@@ -31,12 +31,13 @@ const Navbar: React.FC = () => {
     const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
     setIsStandalone(isInStandaloneMode);
 
-    // 2. Enhanced iOS Detection (Includes iPads acting as Macs)
+    // 2. Enhanced iOS Detection
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIphone = /iphone|ipod/.test(userAgent);
-    const isIpad = navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /macintel/.test(userAgent); // iPads often report as MacIntel
+    // iPads often request desktop site (Macintosh), check touch points
+    const isIpad = /ipad/.test(userAgent) || (navigator.maxTouchPoints > 1 && /macintosh|mac os x/.test(userAgent));
     
-    setIsIOS(isIphone || isIpad || /ipad/.test(userAgent));
+    setIsIOS(isIphone || isIpad);
 
     // 3. Standard PWA prompt for Android/Desktop
     const handleBeforeInstallPrompt = (e: any) => {
@@ -154,6 +155,19 @@ const Navbar: React.FC = () => {
 
           {/* Mobile Actions */}
           <div className="md:hidden flex items-center gap-2">
+            {/* Install Button for Mobile (Visible on iOS/Android if available) */}
+            {showInstallButton && (
+              <button 
+                onClick={handleInstallClick}
+                className="p-2 text-moto-green hover:bg-green-50 rounded-full transition-colors animate-pulse"
+                title="Instalar Aplicación"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+              </button>
+            )}
+
              <button onClick={toggleCart} className={`relative p-2 text-gray-800 ${isShaking ? 'animate-cart-bounce' : ''}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
