@@ -32,12 +32,15 @@ const Navbar: React.FC = () => {
     setIsStandalone(isInStandaloneMode);
 
     // 2. Enhanced iOS Detection
+    // Checks User Agent and Platform for robustness
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIphone = /iphone|ipod/.test(userAgent);
-    // iPads often request desktop site (Macintosh), check touch points
-    const isIpad = /ipad/.test(userAgent) || (navigator.maxTouchPoints > 1 && /macintosh|mac os x/.test(userAgent));
+    const platform = (window.navigator as any).platform?.toLowerCase() || '';
     
-    setIsIOS(isIphone || isIpad);
+    const isIphone = /iphone|ipod/.test(userAgent);
+    const isIpad = /ipad/.test(userAgent) || (platform.includes('mac') && navigator.maxTouchPoints > 1);
+    
+    const isIOSDevice = isIphone || isIpad;
+    setIsIOS(isIOSDevice);
 
     // 3. Standard PWA prompt for Android/Desktop
     const handleBeforeInstallPrompt = (e: any) => {
@@ -99,7 +102,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20 md:h-24">
           
-          <div className="flex-shrink-0 flex items-center cursor-pointer max-w-[60%]" onClick={scrollToTop}>
+          <div className="flex-shrink-0 flex items-center cursor-pointer max-w-[50%]" onClick={scrollToTop}>
              <h1 className="font-logo text-lg md:text-3xl tracking-widest text-moto-black truncate">
               A2RUEDAS<span className="text-moto-green">OUTLET</span>
             </h1>
@@ -109,7 +112,7 @@ const Navbar: React.FC = () => {
             <a href="#" onClick={scrollToTop} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">INICIO</a>
             <a href="#shop" onClick={handleShopClick} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">TIENDA</a>
             
-            {/* Install App Button (Desktop & iOS detected) */}
+            {/* Install App Button (Desktop) */}
             {showInstallButton && (
               <button 
                 onClick={handleInstallClick}
@@ -154,17 +157,18 @@ const Navbar: React.FC = () => {
           </div>
 
           {/* Mobile Actions */}
-          <div className="md:hidden flex items-center gap-2">
-            {/* Install Button for Mobile (Visible on iOS/Android if available) */}
+          <div className="md:hidden flex items-center gap-1">
+            {/* Install Button for Mobile - Now with text for visibility */}
             {showInstallButton && (
               <button 
                 onClick={handleInstallClick}
-                className="p-2 text-moto-green hover:bg-green-50 rounded-full transition-colors animate-pulse"
-                title="Instalar Aplicación"
+                className="flex items-center gap-1 bg-moto-green/10 text-moto-green hover:bg-moto-green hover:text-white px-3 py-1.5 rounded-full transition-all animate-pulse border border-moto-green/20 mr-1"
+                title="Instalar App"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
+                <span className="text-xs font-bold">App</span>
               </button>
             )}
 
@@ -183,12 +187,6 @@ const Navbar: React.FC = () => {
       {isOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 absolute w-full left-0 shadow-xl animate-fade-in">
           <div className="px-4 pt-4 pb-6 space-y-2">
-            {showInstallButton && (
-              <button onClick={() => { handleInstallClick(); setIsOpen(false); }} className="w-full mb-3 bg-moto-green text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 animate-pulse shadow-md">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                Instalar Aplicación
-              </button>
-            )}
             <a href="#" onClick={(e) => { scrollToTop(e); setIsOpen(false); }} className="block px-4 py-3 rounded-lg text-base font-medium text-gray-800">INICIO</a>
             <a href="#shop" onClick={(e) => { handleShopClick(e); setIsOpen(false); }} className="block px-4 py-3 rounded-lg text-base font-medium text-gray-800">TIENDA</a>
             <button onClick={() => { toggleFavoritesDrawer(); setIsOpen(false); }} className="w-full text-left px-4 py-3 rounded-lg text-base font-medium text-gray-800 flex justify-between">Mis Favoritos {favorites.length > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{favorites.length}</span>}</button>
