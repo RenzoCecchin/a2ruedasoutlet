@@ -50,6 +50,17 @@ const AuthModal: React.FC = () => {
       setError('Por favor, ingresa un email válido.');
       return false;
     }
+    if (view === 'forgot' && forgotStep === 'reset') {
+      if (resetCode.trim().length !== 6) {
+        setError('El código de recuperación debe tener 6 dígitos.');
+        return false;
+      }
+      if (newPassword.length < 6) {
+        setError('La nueva contraseña debe tener al menos 6 caracteres.');
+        return false;
+      }
+      return true;
+    }
     if (view !== 'forgot' && password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.');
       return false;

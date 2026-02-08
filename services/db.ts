@@ -1,8 +1,9 @@
-import { User } from '../types';
+import { AndreaniTicket, AndreaniTicketPayload, User } from '../types';
 
 const SESSION_KEY = 'a2ruedas_session';
 const API_URL = 'http://127.0.0.1:3001/api';
 const MOCK_DB_KEY = 'a2ruedas_mock_db_users';
+const ANDREANI_TICKETS_KEY = 'a2ruedas_andreani_tickets';
 
 // --- HELPER FUNCTIONS ---
 
@@ -199,6 +200,40 @@ export const db = {
       });
     } catch (error) {
       // Silent fail, local storage is the source of truth when offline
+    }
+  },
+
+  createAndreaniTicket: async (payload: AndreaniTicketPayload): Promise<AndreaniTicket> => {
+    try {
+      const response = await fetch(`${API_URL}/andreani/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'No se pudo generar el ticket de Andreani.');
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      await delay(600);
+      const fallbackTicket: AndreaniTicket = {
+        ...payload,
+        id: `and-local-${Date.now()}`,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      try {
+        const stored = localStorage.getItem(ANDREANI_TICKETS_KEY);
+        const tickets = stored ? JSON.parse(stored) : [];
+        tickets.push(fallbackTicket);
+        localStorage.setItem(ANDREANI_TICKETS_KEY, JSON.stringify(tickets));
+      } catch (storageError) {
+        console.error("Andreani Ticket Save Error", storageError);
+      }
+      return fallbackTicket;
     }
   },
 

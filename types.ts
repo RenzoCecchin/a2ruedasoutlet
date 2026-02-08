@@ -51,3 +51,34 @@ export interface User {
   role: 'admin' | 'customer';
   favorites?: string[]; // List of product IDs
 }
+
+export interface AndreaniTicketItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+  color?: string;
+}
+
+export interface AndreaniTicketPayload {
+  orderNumber: string;
+  recipient: {
+    name: string;
+    phone: string;
+    email: string;
+  };
+  address: {
+    address: string;
+    city: string;
+    zip: string;
+  };
+  items: AndreaniTicketItem[];
+  total: number;
+  notes?: string;
+}
+
+export interface AndreaniTicket extends AndreaniTicketPayload {
+  id: string;
+  status: 'pending' | 'created';
+  createdAt: string;
+}
