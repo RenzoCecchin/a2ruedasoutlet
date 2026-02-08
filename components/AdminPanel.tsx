@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useProducts } from '../context/ProductContext';
-import { Product } from '../types';
-import { CATEGORIES } from '../constants';
+import { Category, Product } from '../types';
 
 const AdminPanel: React.FC = () => {
-  const { products, updateProduct, deleteProduct, addProduct } = useProducts();
+  const { products, categories, updateProduct, deleteProduct, addProduct, addCategory } = useProducts();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory'>('dashboard');
   
   // --- Inventory State ---
@@ -13,6 +12,8 @@ const AdminPanel: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
   const [filter, setFilter] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategorySubcategories, setNewCategorySubcategories] = useState('');
 
   // --- Dashboard Logic ---
   const metrics = useMemo(() => {
@@ -40,14 +41,16 @@ const AdminPanel: React.FC = () => {
   };
 
   const startAdd = () => {
+    const defaultCategory = categories[0];
+    const defaultSubcategory = defaultCategory?.groups[0]?.items[0] ?? '';
     setEditingId('NEW');
     setEditForm({
       name: '',
       price: 0,
       stock: 5,
       image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=400',
-      category: CATEGORIES[0].name,
-      subcategory: CATEGORIES[0].groups[0].items[0],
+      category: defaultCategory?.name || '',
+      subcategory: defaultSubcategory,
       description: '',
       gallery: []
     });
@@ -85,6 +88,35 @@ const AdminPanel: React.FC = () => {
           deleteProduct(id);
       }
   }
+
+  const handleAddCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const items = newCategorySubcategories
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    const category: Category = {
+      id: name.toLowerCase().replace(/\s+/g, '-'),
+      name,
+      groups: [
+        {
+          name: 'General',
+          items: items.length ? items : ['Otros']
+        }
+      ]
+    };
+    addCategory(category);
+    setNewCategoryName('');
+    setNewCategorySubcategories('');
+  };
+
+  const getSubcategoryOptions = (categoryName?: string) => {
+    if (!categoryName) return [];
+    return categories
+      .find(c => c.name === categoryName)
+      ?.groups.flatMap(group => group.items) || [];
+  };
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(filter.toLowerCase()) || 
@@ -273,23 +305,55 @@ const AdminPanel: React.FC = () => {
         {activeTab === 'inventory' && (
             <div className="bg-white rounded-xl shadow overflow-hidden animate-fade-in">
               {/* Inventory Toolbar */}
-              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between bg-gray-50">
-                 <input 
-                    type="text" 
-                    placeholder="Buscar por nombre o subcategoría..." 
-                    className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-moto-green outline-none w-full md:w-96"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                 />
-                 <button 
-                    onClick={startAdd}
-                    className="bg-moto-green text-white px-6 py-2 rounded-lg font-bold hover:bg-moto-greenDark transition-colors flex items-center gap-2 whitespace-nowrap justify-center shadow-md"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Nuevo Producto
-                </button>
+              <div className="p-4 border-b border-gray-100 flex flex-col gap-4 bg-gray-50">
+                 <div className="flex flex-col md:flex-row gap-4 justify-between">
+                   <input 
+                      type="text" 
+                      placeholder="Buscar por nombre o subcategoría..." 
+                      className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-moto-green outline-none w-full md:w-96"
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                   />
+                   <button 
+                      onClick={startAdd}
+                      className="bg-moto-green text-white px-6 py-2 rounded-lg font-bold hover:bg-moto-greenDark transition-colors flex items-center gap-2 whitespace-nowrap justify-center shadow-md"
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      Nuevo Producto
+                  </button>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white border border-gray-200 rounded-lg p-4">
+                   <div>
+                     <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Nueva categoría</label>
+                     <input
+                       type="text"
+                       value={newCategoryName}
+                       onChange={(e) => setNewCategoryName(e.target.value)}
+                       placeholder="Ej: ACCESORIOS"
+                       className="w-full border rounded px-2 py-2 text-sm"
+                     />
+                   </div>
+                   <div className="md:col-span-2">
+                     <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Subcategorías (separadas por coma)</label>
+                     <input
+                       type="text"
+                       value={newCategorySubcategories}
+                       onChange={(e) => setNewCategorySubcategories(e.target.value)}
+                       placeholder="Ej: Cascos, Guantes, Botas"
+                       className="w-full border rounded px-2 py-2 text-sm"
+                     />
+                   </div>
+                   <div className="md:col-span-3 flex justify-end">
+                     <button
+                       onClick={handleAddCategory}
+                       className="bg-moto-black text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-moto-green transition-colors"
+                     >
+                       Crear categoría
+                     </button>
+                   </div>
+                 </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -339,18 +403,29 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 className="w-full border rounded px-2 py-1 text-sm mb-2"
                                >
-                                 {CATEGORIES.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                               </select>
-                               <select 
-                                value={editForm.subcategory}
-                                onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
-                                className="w-full border rounded px-2 py-1 text-sm"
-                               >
                                  <option value="">Seleccionar</option>
-                                 {CATEGORIES.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
-                                   <option key={s} value={s}>{s}</option>
-                                 ))}
+                                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                </select>
+                               {getSubcategoryOptions(editForm.category).length > 0 ? (
+                                 <select 
+                                  value={editForm.subcategory}
+                                  onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                 >
+                                   <option value="">Seleccionar</option>
+                                   {getSubcategoryOptions(editForm.category).map(s => (
+                                     <option key={s} value={s}>{s}</option>
+                                   ))}
+                                 </select>
+                               ) : (
+                                 <input
+                                  type="text"
+                                  placeholder="Subcategoría"
+                                  value={editForm.subcategory || ''}
+                                  onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                 />
+                               )}
                           </td>
                           <td className="px-6 py-4 align-top">
                             <input 
@@ -418,19 +493,30 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 className="w-full border rounded px-2 py-1 text-sm mb-2"
                                >
-                                 {CATEGORIES.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                 <option value="">Seleccionar</option>
+                                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                </select>
                                <div className="text-xs text-gray-500 mb-1">Subcategoría</div>
-                               <select 
-                                value={editForm.subcategory}
-                                onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
-                                className="w-full border rounded px-2 py-1 text-sm"
-                               >
-                                 <option value="">Seleccionar</option>
-                                 {CATEGORIES.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
-                                   <option key={s} value={s}>{s}</option>
-                                 ))}
-                               </select>
+                               {getSubcategoryOptions(editForm.category).length > 0 ? (
+                                 <select 
+                                  value={editForm.subcategory}
+                                  onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                 >
+                                   <option value="">Seleccionar</option>
+                                   {getSubcategoryOptions(editForm.category).map(s => (
+                                     <option key={s} value={s}>{s}</option>
+                                   ))}
+                                 </select>
+                               ) : (
+                                 <input
+                                  type="text"
+                                  placeholder="Subcategoría"
+                                  value={editForm.subcategory || ''}
+                                  onChange={(e) => setEditForm({...editForm, subcategory: e.target.value})}
+                                  className="w-full border rounded px-2 py-1 text-sm"
+                                 />
+                               )}
                             </td>
                             <td className="px-6 py-4 align-top">
                               <label className="text-xs text-gray-500 block">Unidades</label>

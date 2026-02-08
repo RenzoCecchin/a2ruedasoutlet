@@ -1,18 +1,21 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { Product } from '../types';
-import { PRODUCTS as INITIAL_PRODUCTS } from '../constants';
+import { Category, Product } from '../types';
+import { CATEGORIES as INITIAL_CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from '../constants';
 
 interface ProductContextType {
   products: Product[];
+  categories: Category[];
   updateProduct: (id: string, updatedProduct: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   addProduct: (product: Product) => void;
+  addCategory: (category: Category) => void;
   decrementStock: (items: { id: string; quantity: number }[]) => void;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'a2ruedas_inventory_v1';
+const CATEGORY_STORAGE_KEY = 'a2ruedas_categories_v1';
 
 export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Initialize state lazy-loading from localStorage or falling back to constants
@@ -32,6 +35,20 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
     return INITIAL_PRODUCTS;
   });
 
+  const [categories, setCategories] = useState<Category[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(CATEGORY_STORAGE_KEY);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error("Categories corrupted, using defaults.", e);
+      }
+    }
+    return INITIAL_CATEGORIES;
+  });
+
   // Save to localStorage whenever products change
   useEffect(() => {
     try {
@@ -40,6 +57,14 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
       console.error("Failed to save inventory", e);
     }
   }, [products]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
+    } catch (e) {
+      console.error("Failed to save categories", e);
+    }
+  }, [categories]);
 
   const updateProduct = (id: string, updatedProduct: Partial<Product>) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedProduct } : p));
@@ -51,6 +76,14 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addProduct = (product: Product) => {
     setProducts(prev => [...prev, product]);
+  };
+
+  const addCategory = (category: Category) => {
+    setCategories(prev => {
+      const exists = prev.some(existing => existing.name.toLowerCase() === category.name.toLowerCase());
+      if (exists) return prev;
+      return [...prev, category];
+    });
   };
 
   const decrementStock = (itemsToDecrement: { id: string; quantity: number }[]) => {
@@ -65,7 +98,7 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   return (
-    <ProductContext.Provider value={{ products, updateProduct, deleteProduct, addProduct, decrementStock }}>
+    <ProductContext.Provider value={{ products, categories, updateProduct, deleteProduct, addProduct, addCategory, decrementStock }}>
       {children}
     </ProductContext.Provider>
   );
