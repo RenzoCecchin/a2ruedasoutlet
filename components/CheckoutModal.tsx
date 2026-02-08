@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
+import { db } from '../services/db';
+import { AndreaniTicket } from '../types';
 
 type CheckoutStep = 'shipping' | 'payment' | 'processing' | 'success';
 type PaymentMethod = 'transfer' | 'mercadopago';
@@ -15,6 +17,9 @@ const CheckoutModal: React.FC = () => {
   const [step, setStep] = useState<CheckoutStep>('shipping');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('andreani');
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [andreaniTicket, setAndreaniTicket] = useState<AndreaniTicket | null>(null);
+  const [andreaniError, setAndreaniError] = useState('');
   
   // Form Data
   const [formData, setFormData] = useState({
@@ -43,6 +48,9 @@ const CheckoutModal: React.FC = () => {
     if (isCheckoutOpen) {
       setStep('shipping');
       setShippingMethod('andreani');
+      setOrderNumber(null);
+      setAndreaniTicket(null);
+      setAndreaniError('');
     }
   }, [isCheckoutOpen]);
 
@@ -58,8 +66,14 @@ const CheckoutModal: React.FC = () => {
     setStep('payment');
   };
 
+  const generateOrderNumber = () => {
+    const newOrderNumber = Math.floor(Math.random() * 100000) + 10000;
+    setOrderNumber(newOrderNumber.toString());
+    return newOrderNumber.toString();
+  };
+
   const generateWhatsAppOrder = () => {
-    const orderNumber = Math.floor(Math.random() * 100000) + 10000; // 5 digit order ID
+    const currentOrderNumber = orderNumber ?? generateOrderNumber();
     
     // Build Item List with ID explicitly included
     const itemList = items.map(i => {
@@ -88,7 +102,8 @@ const CheckoutModal: React.FC = () => {
     }
 
     // Build Final Message
-    const text = `*¡Hola A2RUEDASOUTLET! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${orderNumber}%0A%0A🛒 *MIS PRODUCTOS:*%0A${itemList}%0A%0A💰 *TOTAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A💳 *MEDIO DE PAGO:* ${methodText}%0A${shippingText}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Tel:* ${formData.phone}%0A${addressText ? addressText + '%0A' : ''}%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el pago?`;
+    const andreaniTicketLine = shippingMethod === 'andreani' && andreaniTicket ? `%0A🎫 *Ticket Andreani:* ${andreaniTicket.id}` : '';
+    const text = `*¡Hola A2RUEDASOUTLET! Quiero confirmar mi pedido.* 🏍️%0A%0A🆔 *Orden:* #${currentOrderNumber}${andreaniTicketLine}%0A%0A🛒 *MIS PRODUCTOS:*%0A${itemList}%0A%0A💰 *TOTAL:* $${cartTotal.toLocaleString('es-AR')}%0A%0A💳 *MEDIO DE PAGO:* ${methodText}%0A${shippingText}%0A%0A👤 *MIS DATOS:*%0A*Nombre:* ${formData.name}%0A*Tel:* ${formData.phone}%0A${addressText ? addressText + '%0A' : ''}%0A${formData.notes ? `📝 *Nota:* ${formData.notes}%0A` : ''}%0A¿Me confirman stock y coordinamos el pago?`;
 
     // Decrement stock from inventory (Local State)
     decrementStock(items.map(i => ({ id: i.id, quantity: i.quantity })));
@@ -108,6 +123,40 @@ const CheckoutModal: React.FC = () => {
     e.preventDefault();
     setStep('processing');
     
+    const currentOrderNumber = orderNumber ?? generateOrderNumber();
+
+    if (shippingMethod === 'andreani') {
+      try {
+        const ticket = await db.createAndreaniTicket({
+          orderNumber: currentOrderNumber,
+          recipient: {
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email
+          },
+          address: {
+            address: formData.address,
+            city: formData.city,
+            zip: formData.zip
+          },
+          items: items.map(item => ({
+            id: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            color: item.selectedColor
+          })),
+          total: cartTotal,
+          notes: formData.notes || undefined
+        });
+        setAndreaniTicket(ticket);
+        setAndreaniError('');
+      } catch (error: any) {
+        setAndreaniError(error.message || 'No se pudo generar el ticket de Andreani.');
+        setAndreaniTicket(null);
+      }
+    }
+
     // Simulate Processing
     await new Promise(resolve => setTimeout(resolve, 1500));
     
@@ -398,6 +447,22 @@ const CheckoutModal: React.FC = () => {
                 <p className="text-gray-600 max-w-sm mb-8 text-sm">
                   Tu orden ha sido generada correctamente. Para finalizar, envía el detalle a nuestro equipo de ventas por WhatsApp.
                 </p>
+                {shippingMethod === 'andreani' && (
+                  <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-4 text-left text-sm mb-6">
+                    <p className="font-bold text-gray-900 mb-1">Ticket Andreani</p>
+                    {andreaniTicket ? (
+                      <>
+                        <p className="text-gray-600">Se generó el ticket de envío para tu dirección.</p>
+                        <p className="text-moto-green font-bold mt-2">Código: {andreaniTicket.id}</p>
+                      </>
+                    ) : (
+                      <p className="text-gray-600">Estamos preparando el ticket de envío.</p>
+                    )}
+                    {andreaniError && (
+                      <p className="text-red-500 text-xs mt-2">{andreaniError}</p>
+                    )}
+                  </div>
+                )}
                 
                 <button 
                   onClick={generateWhatsAppOrder}

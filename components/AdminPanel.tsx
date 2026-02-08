@@ -48,6 +48,7 @@ const AdminPanel: React.FC = () => {
       image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=400',
       category: CATEGORIES[0].name,
       subcategory: CATEGORIES[0].groups[0].items[0],
+      description: '',
       gallery: []
     });
     setIsAdding(true);
@@ -66,6 +67,7 @@ const AdminPanel: React.FC = () => {
           price: editForm.price || 0,
           stock: editForm.stock || 0,
           image: editForm.image || '',
+          description: editForm.description || '',
           gallery: editForm.gallery || []
         } as Product);
       }
@@ -313,6 +315,12 @@ const AdminPanel: React.FC = () => {
                                 onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                                 className="w-full border rounded px-2 py-1 text-sm mb-2"
                               />
+                              <textarea
+                                placeholder="Descripción del producto"
+                                value={editForm.description || ''}
+                                onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                                className="w-full border rounded px-2 py-1 text-xs mb-2 min-h-[80px]"
+                              />
                                <div className="flex items-center gap-2 mb-2">
                                  <input 
                                    type="text"
@@ -380,6 +388,12 @@ const AdminPanel: React.FC = () => {
                                   value={editForm.name} 
                                   onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                                   className="w-full border rounded px-2 py-1 text-sm"
+                                />
+                                <textarea
+                                  placeholder="Descripción del producto"
+                                  value={editForm.description || ''}
+                                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                                  className="w-full border rounded px-2 py-1 text-xs min-h-[80px]"
                                 />
                                 <div className="flex items-center gap-2">
                                   <img src={editForm.image} alt="preview" className="h-10 w-10 object-cover rounded" />

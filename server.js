@@ -32,12 +32,17 @@ const readData = () => {
           favorites: []
         }
       ],
-      orders: []
+      orders: [],
+      tickets: []
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
     return initialData;
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  if (!data.orders) data.orders = [];
+  if (!data.tickets) data.tickets = [];
+  if (!data.users) data.users = [];
+  return data;
 };
 
 // Helper to write data
@@ -175,6 +180,31 @@ app.put('/api/users/:userId/favorites', (req, res) => {
   } else {
     res.status(404).json({ message: 'Usuario no encontrado' });
   }
+});
+
+// 7. Create Andreani Ticket
+app.post('/api/andreani/tickets', (req, res) => {
+  const { orderNumber, recipient, address, items, total, notes } = req.body;
+  if (!orderNumber || !recipient?.name || !recipient?.phone || !address?.address || !address?.city || !address?.zip || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'Datos incompletos para generar el ticket.' });
+  }
+
+  const db = readData();
+  const ticket = {
+    id: `and-${Date.now()}`,
+    orderNumber,
+    recipient,
+    address,
+    items,
+    total,
+    notes,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+
+  db.tickets.push(ticket);
+  writeData(db);
+  res.status(201).json(ticket);
 });
 
 // --- SERVE STATIC FRONTEND (Optional: if built via npm run build) ---
