@@ -1,7 +1,7 @@
 import { User } from '../types';
 
 const SESSION_KEY = 'a2ruedas_session';
-const API_URL = 'http://127.0.0.1:3001/api';
+const API_URL = '/api';
 const MOCK_DB_KEY = 'a2ruedas_mock_db_users';
 
 // --- HELPER FUNCTIONS ---
@@ -222,5 +222,32 @@ export const db = {
 
   clearSession: () => {
     localStorage.removeItem(SESSION_KEY);
+  },
+
+  // --- STOCK INTEGRATION ---
+
+  syncStock: async (products: import('../types').Product[]): Promise<import('../types').Product[]> => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+      const response = await fetch(`${API_URL}/products/sync-stock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error('Network error syncing stock');
+      }
+      const data = await response.json();
+      return data.products || products;
+    } catch (error) {
+      // Local fallback: just return the unchanged products
+      console.error('Failed to sync stock, returning local products', error);
+      return products;
+    }
   }
 };

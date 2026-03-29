@@ -176,6 +176,120 @@ app.put('/api/users/:userId/favorites', (req, res) => {
     res.status(404).json({ message: 'Usuario no encontrado' });
   }
 });
+// --- MERCADO LIBRE INTEGRATION ---
+const ML_APP_ID = '6903992046026037';
+const ML_CLIENT_SECRET = 'pPyYRkovAZEg2xAYN6rYxCR2y28UrNcf';
+let mlToken = null;
+let mlTokenExpires = 0;
+
+async function getMLToken() {
+  if (mlToken && Date.now() < mlTokenExpires) {
+    return mlToken;
+  }
+  try {
+    const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: ML_APP_ID,
+        client_secret: ML_CLIENT_SECRET
+      })
+    });
+    const data = await response.json();
+    if (data.access_token) {
+      mlToken = data.access_token;
+      mlTokenExpires = Date.now() + (data.expires_in - 300) * 1000;
+      return mlToken;
+    }
+  } catch (error) {
+    console.error('Error fetching ML token:', error);
+  }
+  return null;
+}
+
+// 7. Sync Stock from Mercado Libre
+app.post('/api/products/sync-stock', async (req, res) => {
+  try {
+    const { products } = req.body;
+    if (!products || !Array.isArray(products)) {
+      return res.status(400).json({ message: 'Formato inválido' });
+    }
+
+    const token = await getMLToken();
+    if (!token) {
+      // If ML token fails, just return original products
+      console.error('Failed to get ML Token');
+      return res.json({ products });
+    }
+
+    const mlIds = [];
+    const productMap = {}; // mapping mlId to product ids
+
+    products.forEach(p => {
+      // Extract MLA item ID from image URL (e.g. MLA12345678)
+      const match = p.image && p.image.match(/(MLA\d+)/);
+      if (match) {
+        const mlId = match[1];
+        if (!mlIds.includes(mlId)) {
+          mlIds.push(mlId);
+        }
+        if (!productMap[mlId]) productMap[mlId] = [];
+        productMap[mlId].push(p.id);
+      }
+    });
+
+    if (mlIds.length === 0) {
+      return res.json({ products });
+    }
+
+    const chunkSize = 20;
+    const stockUpdates = {};
+
+    // Fetch chunked items from ML
+    for (let i = 0; i < mlIds.length; i += chunkSize) {
+      const chunk = mlIds.slice(i, i + chunkSize);
+      const url = `https://api.mercadolibre.com/items?ids=${chunk.join(',')}`;
+      
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      
+      data.forEach(itemInfo => {
+        if (itemInfo.code === 200 && itemInfo.body) {
+          const body = itemInfo.body;
+          const mlId = body.id;
+          const stock = body.available_quantity;
+          
+          if (productMap[mlId]) {
+            productMap[mlId].forEach(pid => {
+              stockUpdates[pid] = stock;
+            });
+          }
+        }
+      });
+    }
+
+    // Apply updates
+    const updatedProducts = products.map(p => {
+      if (stockUpdates[p.id] !== undefined) {
+        return { ...p, stock: stockUpdates[p.id] };
+      }
+      return p;
+    });
+
+    res.json({ products: updatedProducts });
+
+  } catch (error) {
+    console.error('Error syncing stock:', error);
+    // Silent fail on server error, return original products
+    res.json({ products: req.body.products || [] });
+  }
+});
 
 // --- SERVE STATIC FRONTEND (Optional: if built via npm run build) ---
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -197,9 +311,14 @@ app.get('*', (req, res) => {
   }
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`✅ Backend Server running at http://localhost:${PORT}`);
-  console.log(`👤 Admin Account: Mica@motos.com / Mandino`);
-  console.log(`ℹ️  Note: Frontend runs separately via "npm run dev"`);
-});
+// Start Server only if not running in a Vercel serverless environment
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`✅ Backend Server running at http://localhost:${PORT}`);
+    console.log(`👤 Admin Account: Mica@motos.com / Mandino`);
+    console.log(`ℹ️  Note: Frontend runs separately via "npm run dev"`);
+  });
+}
+
+// Export for Vercel Serverless
+export default app;

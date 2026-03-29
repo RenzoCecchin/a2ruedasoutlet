@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { Product } from '../types';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants';
+import { db } from '../services/db';
 
 interface ProductContextType {
   products: Product[];
@@ -31,6 +32,23 @@ export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children })
     // Constants now include stock
     return INITIAL_PRODUCTS;
   });
+
+  // Sync stock from Mercado Libre on startup
+  useEffect(() => {
+    let mounted = true;
+    const syncWithML = async () => {
+      try {
+        const synced = await db.syncStock(products);
+        if (mounted) {
+          setProducts(synced);
+        }
+      } catch (error) {
+        console.error("Stock sync error", error);
+      }
+    };
+    syncWithML();
+    return () => { mounted = false; };
+  }, []); // Run only once on mount
 
   // Save to localStorage whenever products change
   useEffect(() => {
