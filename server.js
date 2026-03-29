@@ -17,32 +17,53 @@ const DATA_FILE = path.join(__dirname, 'server-data.json');
 app.use(cors());
 app.use(bodyParser.json());
 
-// Helper to read data
+// Helper to read data (Safely wrapped for Vercel Serverless Read-Only limits)
+let memoryData = null; // Fallback to memory if disk fails
+
 const readData = () => {
-  if (!fs.existsSync(DATA_FILE)) {
-    // Initialize with default admin if file doesn't exist
-    const initialData = {
-      users: [
-        {
-          id: 'admin-1',
-          name: 'Admin MotoElite',
-          email: 'Mica@motos.com',
-          password: 'Mandino',
-          role: 'admin',
-          favorites: []
-        }
-      ],
-      orders: []
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+  if (memoryData) return memoryData;
+
+  const initialData = {
+    users: [
+      {
+        id: 'admin-1',
+        name: 'Admin MotoElite',
+        email: 'Mica@motos.com',
+        password: 'Mandino',
+        role: 'admin',
+        favorites: []
+      }
+    ],
+    orders: []
+  };
+
+  try {
+    if (!fs.existsSync(DATA_FILE)) {
+      try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+      } catch (writeErr) {
+        console.warn('Filesystem is read-only (expected on Vercel). Falling back to memory DB.');
+        memoryData = initialData;
+        return initialData;
+      }
+      return initialData;
+    }
+    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  } catch (err) {
+    console.warn('Error reading DB, using initial data in memory.', err);
+    memoryData = initialData;
     return initialData;
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 };
 
 // Helper to write data
 const writeData = (data) => {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.warn('Cannot write to disk (Vercel Serverless). Saving to memory only.');
+    memoryData = data;
+  }
 };
 
 // Routes
