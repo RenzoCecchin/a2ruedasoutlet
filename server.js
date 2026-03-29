@@ -242,37 +242,47 @@ app.post('/api/products/sync-stock', async (req, res) => {
 
     const token = await getMLToken();
     if (!token) {
-      // If ML token fails, just return original products
       console.error('Failed to get ML Token');
       return res.json({ products });
     }
 
-    const mlIds = [];
-    const productMap = {}; // mapping mlId to product ids
-
-    products.forEach(p => {
-      // Extract MLA item ID from image URL (e.g. MLA12345678)
-      const match = p.image && p.image.match(/(MLA\d+)/);
-      if (match) {
-        const mlId = match[1];
-        if (!mlIds.includes(mlId)) {
-          mlIds.push(mlId);
-        }
-        if (!productMap[mlId]) productMap[mlId] = [];
-        productMap[mlId].push(p.id);
-      }
+    // We also need the user_id that comes with the ML token. 
+    // Wait, getMLToken doesn't return user_id. Let's modify it inline or get it.
+    // Since getMLToken only returns token, we can get user_id by parsing the token or calling users/me.
+    // Actually, client_credentials token always returns user_id when you POST /oauth/token.
+    // Since we need user_id, let's fetch it if not cached. 
+    // To not break existing getMLToken, we just do a fetch to users/me with the token.
+    const meRes = await fetch('https://api.mercadolibre.com/users/me', {
+      headers: { Authorization: `Bearer ${token}` }
     });
+    const meData = await meRes.json();
+    const userId = meData.id;
 
-    if (mlIds.length === 0) {
-      return res.json({ products });
+    if (!userId) {
+       console.error('Failed to get ML User ID');
+       return res.json({ products });
     }
 
-    const chunkSize = 20;
-    const stockUpdates = {};
+    let allMlItemIds = [];
+    let offset = 0;
 
-    // Fetch chunked items from ML
-    for (let i = 0; i < mlIds.length; i += chunkSize) {
-      const chunk = mlIds.slice(i, i + chunkSize);
+    // Fetch up to 500 items to avoid infinite loops
+    while (offset < 500) {
+      const searchRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search?limit=100&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const searchData = await searchRes.json();
+      if (!searchData || !searchData.results || searchData.results.length === 0) break;
+      allMlItemIds = allMlItemIds.concat(searchData.results);
+      if (searchData.results.length < 100) break; // Reached the end
+      offset += 100;
+    }
+
+    const mapTitleToStock = {};
+    const chunkSize = 20;
+
+    for (let i = 0; i < allMlItemIds.length; i += chunkSize) {
+      const chunk = allMlItemIds.slice(i, i + chunkSize);
       const url = `https://api.mercadolibre.com/items?ids=${chunk.join(',')}`;
       
       const response = await fetch(url, {
@@ -283,13 +293,11 @@ app.post('/api/products/sync-stock', async (req, res) => {
       data.forEach(itemInfo => {
         if (itemInfo.code === 200 && itemInfo.body) {
           const body = itemInfo.body;
-          const mlId = body.id;
+          const title = (body.title || '').trim().toLowerCase();
           const stock = body.available_quantity;
           
-          if (productMap[mlId]) {
-            productMap[mlId].forEach(pid => {
-              stockUpdates[pid] = stock;
-            });
+          if (mapTitleToStock[title] === undefined || stock > mapTitleToStock[title]) {
+             mapTitleToStock[title] = stock;
           }
         }
       });
@@ -297,17 +305,32 @@ app.post('/api/products/sync-stock', async (req, res) => {
 
     // Apply updates
     const updatedProducts = products.map(p => {
-      if (stockUpdates[p.id] !== undefined) {
-        return { ...p, stock: stockUpdates[p.id] };
+      const pTitle = (p.name || '').trim().toLowerCase();
+      // Relaxed matching: check if ML title includes our product name or vice-versa
+      // Sometimes ML titles have extra words. But exact match is safest first.
+      let newStock = mapTitleToStock[pTitle];
+      
+      // If exact match fails, try finding an ML item that contains the our exact title
+      if (newStock === undefined) {
+         for (const [mlTitle, stock] of Object.entries(mapTitleToStock)) {
+            if (mlTitle === pTitle || mlTitle.includes(pTitle) || pTitle.includes(mlTitle)) {
+               newStock = stock;
+               break;
+            }
+         }
       }
-      return p;
+
+      if (newStock !== undefined) {
+        return { ...p, stock: newStock };
+      }
+      return { ...p, stock: 0 }; // If not found in ML, mark as out of stock or just original? 
+      // Better to return 0 or original? The user says "el stock no figura". They want real ML stock. If ML deleted it, stock is 0.
     });
 
     res.json({ products: updatedProducts });
 
   } catch (error) {
     console.error('Error syncing stock:', error);
-    // Silent fail on server error, return original products
     res.json({ products: req.body.products || [] });
   }
 });
