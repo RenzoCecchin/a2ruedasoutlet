@@ -72,9 +72,9 @@ const writeData = (data) => {
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   const db = readData();
-  
+
   const user = db.users.find(u => u.email === email && u.password === password);
-  
+
   if (user) {
     // In a production app, we would return a JWT token here.
     const { password, recoveryCode, recoveryExpires, ...userWithoutPass } = user;
@@ -97,7 +97,7 @@ app.post('/api/auth/register', (req, res) => {
     id: Date.now().toString(),
     name,
     email,
-    password, 
+    password,
     role: 'customer',
     favorites: [] // Initialize empty favorites
   };
@@ -113,17 +113,17 @@ app.post('/api/auth/register', (req, res) => {
 app.post('/api/auth/forgot-password', (req, res) => {
   const { email } = req.body;
   const db = readData();
-  
+
   const userIndex = db.users.findIndex(u => u.email === email);
-  
+
   if (userIndex !== -1) {
     // Generate a 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     // Save code to user record (expires in 15 mins)
     db.users[userIndex].recoveryCode = code;
-    db.users[userIndex].recoveryExpires = Date.now() + 15 * 60 * 1000; 
-    
+    db.users[userIndex].recoveryExpires = Date.now() + 15 * 60 * 1000;
+
     writeData(db);
 
     // LOG TO CONSOLE (SIMULATING EMAIL SERVICE)
@@ -144,22 +144,22 @@ app.post('/api/auth/reset-password', (req, res) => {
   const { email, code, newPassword } = req.body;
   const db = readData();
 
-  const userIndex = db.users.findIndex(u => 
-    u.email === email && 
-    u.recoveryCode === code && 
+  const userIndex = db.users.findIndex(u =>
+    u.email === email &&
+    u.recoveryCode === code &&
     u.recoveryExpires > Date.now()
   );
 
   if (userIndex !== -1) {
     // Update password
     db.users[userIndex].password = newPassword;
-    
+
     // Clear recovery data
     delete db.users[userIndex].recoveryCode;
     delete db.users[userIndex].recoveryExpires;
 
     writeData(db);
-    
+
     res.json({ message: 'Contraseña actualizada correctamente' });
   } else {
     res.status(400).json({ message: 'Código inválido o expirado' });
@@ -202,6 +202,7 @@ const ML_APP_ID = '6903992046026037';
 const ML_CLIENT_SECRET = 'pPyYRkovAZEg2xAYN6rYxCR2y28UrNcf';
 let mlToken = null;
 let mlTokenExpires = 0;
+// AUTH CODE (already exchanged): TG-69c99f61541e3d00015be022-495486730
 
 async function getMLToken() {
   if (mlToken && Date.now() < mlTokenExpires) {
@@ -259,8 +260,8 @@ app.post('/api/products/sync-stock', async (req, res) => {
     const userId = meData.id;
 
     if (!userId) {
-       console.error('Failed to get ML User ID');
-       return res.json({ products });
+      console.error('Failed to get ML User ID');
+      return res.json({ products });
     }
 
     let allMlItemIds = [];
@@ -284,20 +285,20 @@ app.post('/api/products/sync-stock', async (req, res) => {
     for (let i = 0; i < allMlItemIds.length; i += chunkSize) {
       const chunk = allMlItemIds.slice(i, i + chunkSize);
       const url = `https://api.mercadolibre.com/items?ids=${chunk.join(',')}`;
-      
+
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      
+
       data.forEach(itemInfo => {
         if (itemInfo.code === 200 && itemInfo.body) {
           const body = itemInfo.body;
           const title = (body.title || '').trim().toLowerCase();
           const stock = body.available_quantity;
-          
+
           if (mapTitleToStock[title] === undefined || stock > mapTitleToStock[title]) {
-             mapTitleToStock[title] = stock;
+            mapTitleToStock[title] = stock;
           }
         }
       });
@@ -309,15 +310,15 @@ app.post('/api/products/sync-stock', async (req, res) => {
       // Relaxed matching: check if ML title includes our product name or vice-versa
       // Sometimes ML titles have extra words. But exact match is safest first.
       let newStock = mapTitleToStock[pTitle];
-      
+
       // If exact match fails, try finding an ML item that contains the our exact title
       if (newStock === undefined) {
-         for (const [mlTitle, stock] of Object.entries(mapTitleToStock)) {
-            if (mlTitle === pTitle || mlTitle.includes(pTitle) || pTitle.includes(mlTitle)) {
-               newStock = stock;
-               break;
-            }
-         }
+        for (const [mlTitle, stock] of Object.entries(mapTitleToStock)) {
+          if (mlTitle === pTitle || mlTitle.includes(pTitle) || pTitle.includes(mlTitle)) {
+            newStock = stock;
+            break;
+          }
+        }
       }
 
       if (newStock !== undefined) {
@@ -341,17 +342,17 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Fallback for SPA routing if accessing via Node server
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
-     const indexPath = path.join(__dirname, 'dist', 'index.html');
-     if (fs.existsSync(indexPath)) {
-       res.sendFile(indexPath);
-     } else {
-       res.status(200).send(`
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(200).send(`
          <div style="font-family:sans-serif; text-align:center; padding:50px;">
            <h1>Server Running (API Port ${PORT})</h1>
            <p>To see the app, please keep this running and open a new terminal to run: <b>npm run dev</b></p>
          </div>
        `);
-     }
+    }
   }
 });
 
