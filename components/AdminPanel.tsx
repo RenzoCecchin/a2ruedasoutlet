@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../types';
-import { CATEGORIES } from '../constants';
+import { useCategories } from '../context/CategoryContext';
 
 const AdminPanel: React.FC = () => {
   const { products, updateProduct, deleteProduct, addProduct } = useProducts();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory'>('dashboard');
+  const { categories, addCategory, updateCategory, deleteCategory, addGroupToCategory, updateGroupInCategory, deleteGroupFromCategory, addItemToGroup, removeItemFromGroup } = useCategories();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'categories'>('dashboard');
   
   // --- Inventory State ---
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -13,6 +14,16 @@ const AdminPanel: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
   const [filter, setFilter] = useState('');
+
+  // --- Category Management State ---
+  const [newCatName, setNewCatName] = useState('');
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [addingGroupToCatId, setAddingGroupToCatId] = useState<string | null>(null);
+  const [newSubcatItem, setNewSubcatItem] = useState('');
+  const [addingItemToGroup, setAddingItemToGroup] = useState<{catId: string, groupName: string} | null>(null);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
 
   // --- Dashboard Logic ---
   const metrics = useMemo(() => {
@@ -46,8 +57,8 @@ const AdminPanel: React.FC = () => {
       price: 0,
       stock: 5,
       image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=400',
-      category: CATEGORIES[0].name,
-      subcategory: CATEGORIES[0].groups[0].items[0],
+      category: categories[0]?.name || '',
+      subcategory: categories[0]?.groups[0]?.items[0] || '',
       gallery: []
     });
     setIsAdding(true);
@@ -118,6 +129,16 @@ const AdminPanel: React.FC = () => {
                     }`}
                 >
                     📦 Inventario ({products.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('categories')}
+                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'categories' 
+                        ? 'bg-moto-black text-white shadow-md' 
+                        : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                >
+                    🏷️ Categorías ({categories.length})
                 </button>
             </div>
         </div>
@@ -331,7 +352,7 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 className="w-full border rounded px-2 py-1 text-sm mb-2"
                                >
-                                 {CATEGORIES.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                </select>
                                <select 
                                 value={editForm.subcategory}
@@ -339,7 +360,7 @@ const AdminPanel: React.FC = () => {
                                 className="w-full border rounded px-2 py-1 text-sm"
                                >
                                  <option value="">Seleccionar</option>
-                                 {CATEGORIES.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
+                                 {categories.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
                                    <option key={s} value={s}>{s}</option>
                                  ))}
                                </select>
@@ -404,7 +425,7 @@ const AdminPanel: React.FC = () => {
                                 }}
                                 className="w-full border rounded px-2 py-1 text-sm mb-2"
                                >
-                                 {CATEGORIES.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                </select>
                                <div className="text-xs text-gray-500 mb-1">Subcategoría</div>
                                <select 
@@ -413,7 +434,7 @@ const AdminPanel: React.FC = () => {
                                 className="w-full border rounded px-2 py-1 text-sm"
                                >
                                  <option value="">Seleccionar</option>
-                                 {CATEGORIES.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
+                                 {categories.find(c => c.name === editForm.category)?.groups.flatMap(g => g.items).map(s => (
                                    <option key={s} value={s}>{s}</option>
                                  ))}
                                </select>
@@ -491,6 +512,281 @@ const AdminPanel: React.FC = () => {
                     </div>
                 )}
               </div>
+            </div>
+        )}
+
+        {/* CATEGORIES MANAGEMENT VIEW */}
+        {activeTab === 'categories' && (
+            <div className="space-y-6 animate-fade-in">
+                {/* Add New Category */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-moto-green">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Nueva Categoría
+                    </h3>
+                    <div className="flex gap-3">
+                        <input
+                            type="text"
+                            placeholder="Nombre de la categoría (ej: ACCESORIOS)"
+                            value={newCatName}
+                            onChange={(e) => setNewCatName(e.target.value)}
+                            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-moto-green outline-none text-sm"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newCatName.trim()) {
+                                    addCategory({
+                                        id: newCatName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                                        name: newCatName.trim().toUpperCase(),
+                                        groups: []
+                                    });
+                                    setNewCatName('');
+                                }
+                            }}
+                        />
+                        <button
+                            onClick={() => {
+                                if (newCatName.trim()) {
+                                    addCategory({
+                                        id: newCatName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                                        name: newCatName.trim().toUpperCase(),
+                                        groups: []
+                                    });
+                                    setNewCatName('');
+                                }
+                            }}
+                            disabled={!newCatName.trim()}
+                            className="bg-moto-green text-white px-6 py-2 rounded-lg font-bold hover:bg-moto-greenDark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                        >
+                            Agregar
+                        </button>
+                    </div>
+                </div>
+
+                {/* Categories List */}
+                {categories.map(cat => (
+                    <div key={cat.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        {/* Category Header */}
+                        <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setExpandedCatId(expandedCatId === cat.id ? null : cat.id)}
+                                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={`w-5 h-5 text-gray-600 transition-transform ${expandedCatId === cat.id ? 'rotate-90' : ''}`}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                    </svg>
+                                </button>
+                                {editingCatId === cat.id ? (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={editCatName}
+                                            onChange={(e) => setEditCatName(e.target.value)}
+                                            className="px-3 py-1 border border-moto-green rounded-lg text-sm font-bold focus:ring-2 focus:ring-moto-green outline-none"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && editCatName.trim()) {
+                                                    updateCategory(cat.id, { name: editCatName.trim().toUpperCase() });
+                                                    setEditingCatId(null);
+                                                }
+                                                if (e.key === 'Escape') setEditingCatId(null);
+                                            }}
+                                        />
+                                        <button onClick={() => { if (editCatName.trim()) { updateCategory(cat.id, { name: editCatName.trim().toUpperCase() }); setEditingCatId(null); }}} className="text-green-600 hover:text-green-800 font-bold text-sm bg-green-100 px-3 py-1 rounded-lg">Guardar</button>
+                                        <button onClick={() => setEditingCatId(null)} className="text-gray-500 hover:text-gray-700 text-sm">Cancelar</button>
+                                    </div>
+                                ) : (
+                                    <h3 className="font-bold text-lg text-gray-900">{cat.name}</h3>
+                                )}
+                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full font-medium">
+                                    {cat.groups.length} grupos · {cat.groups.reduce((acc, g) => acc + g.items.length, 0)} subcategorías
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {editingCatId !== cat.id && (
+                                    <button
+                                        onClick={() => { setEditingCatId(cat.id); setEditCatName(cat.name); }}
+                                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium px-3 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                                    >
+                                        Renombrar
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm(`¿Eliminar la categoría "${cat.name}"? Los productos asociados NO se eliminarán.`)) {
+                                            deleteCategory(cat.id);
+                                        }
+                                    }}
+                                    className="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                                >
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Category Body (Groups & Subcategories) */}
+                        {expandedCatId === cat.id && (
+                            <div className="p-5 space-y-4 animate-fade-in">
+                                {/* Add Group Button */}
+                                <div className="mb-4">
+                                    {addingGroupToCatId === cat.id ? (
+                                        <div className="flex gap-2 items-center bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                            <input
+                                                type="text"
+                                                placeholder="Nombre del grupo (ej: Plásticos)"
+                                                value={newGroupName}
+                                                onChange={(e) => setNewGroupName(e.target.value)}
+                                                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-moto-green outline-none"
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newGroupName.trim()) {
+                                                        addGroupToCategory(cat.id, { name: newGroupName.trim(), items: [] });
+                                                        setNewGroupName('');
+                                                        setAddingGroupToCatId(null);
+                                                    }
+                                                    if (e.key === 'Escape') { setAddingGroupToCatId(null); setNewGroupName(''); }
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    if (newGroupName.trim()) {
+                                                        addGroupToCategory(cat.id, { name: newGroupName.trim(), items: [] });
+                                                        setNewGroupName('');
+                                                        setAddingGroupToCatId(null);
+                                                    }
+                                                }}
+                                                className="bg-moto-green text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-moto-greenDark transition-colors"
+                                            >
+                                                Crear
+                                            </button>
+                                            <button
+                                                onClick={() => { setAddingGroupToCatId(null); setNewGroupName(''); }}
+                                                className="text-gray-500 hover:text-gray-700 text-sm"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setAddingGroupToCatId(cat.id)}
+                                            className="flex items-center gap-2 text-sm text-moto-green font-bold hover:text-moto-greenDark transition-colors bg-green-50 px-4 py-2 rounded-lg hover:bg-green-100"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                            Agregar Grupo
+                                        </button>
+                                    )}
+                                </div>
+
+                                {cat.groups.length === 0 && (
+                                    <div className="text-center py-8 text-gray-400 text-sm">
+                                        Esta categoría no tiene grupos aún. Agregá un grupo para empezar a organizar subcategorías.
+                                    </div>
+                                )}
+
+                                {cat.groups.map(group => (
+                                    <div key={group.name} className="border border-gray-200 rounded-xl overflow-hidden">
+                                        {/* Group Header */}
+                                        <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-b border-gray-200">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-sm text-gray-800">{group.name}</span>
+                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{group.items.length} items</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.confirm(`¿Eliminar el grupo "${group.name}" y todas sus subcategorías?`)) {
+                                                            deleteGroupFromCategory(cat.id, group.name);
+                                                        }
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700 text-xs font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                                >
+                                                    Eliminar grupo
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Group Items (Subcategories) */}
+                                        <div className="p-4">
+                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                {group.items.map(item => (
+                                                    <div key={item} className="flex items-center gap-1 bg-gray-100 px-3 py-1.5 rounded-full text-sm text-gray-700 group/item hover:bg-red-50 transition-colors">
+                                                        <span>{item}</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm(`¿Eliminar "${item}" del grupo "${group.name}"?`)) {
+                                                                    removeItemFromGroup(cat.id, group.name, item);
+                                                                }
+                                                            }}
+                                                            className="ml-1 text-gray-400 hover:text-red-600 transition-colors opacity-0 group-hover/item:opacity-100"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {group.items.length === 0 && (
+                                                    <span className="text-xs text-gray-400 italic">Sin subcategorías</span>
+                                                )}
+                                            </div>
+
+                                            {/* Add Item to Group */}
+                                            {addingItemToGroup?.catId === cat.id && addingItemToGroup?.groupName === group.name ? (
+                                                <div className="flex gap-2 items-center">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nueva subcategoría..."
+                                                        value={newSubcatItem}
+                                                        onChange={(e) => setNewSubcatItem(e.target.value)}
+                                                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-moto-green outline-none"
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && newSubcatItem.trim()) {
+                                                                addItemToGroup(cat.id, group.name, newSubcatItem.trim());
+                                                                setNewSubcatItem('');
+                                                            }
+                                                            if (e.key === 'Escape') { setAddingItemToGroup(null); setNewSubcatItem(''); }
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={() => {
+                                                            if (newSubcatItem.trim()) {
+                                                                addItemToGroup(cat.id, group.name, newSubcatItem.trim());
+                                                                setNewSubcatItem('');
+                                                            }
+                                                        }}
+                                                        className="bg-moto-green text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-moto-greenDark transition-colors"
+                                                    >
+                                                        Agregar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setAddingItemToGroup(null); setNewSubcatItem(''); }}
+                                                        className="text-gray-500 hover:text-gray-700 text-xs"
+                                                    >
+                                                        Cerrar
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setAddingItemToGroup({ catId: cat.id, groupName: group.name })}
+                                                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800 transition-colors"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                    </svg>
+                                                    Agregar subcategoría
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))}
             </div>
         )}
       </div>

@@ -13,6 +13,7 @@ import { CartProvider } from './context/CartContext';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FavoritesProvider } from './context/FavoritesContext';
+import { CategoryProvider } from './context/CategoryContext';
 
 const WhatsAppButton: React.FC = () => (
   <a
@@ -77,13 +78,15 @@ const MainLayout: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <ProductProvider>
-        <FavoritesProvider>
-          <CartProvider>
-            <MainLayout />
-          </CartProvider>
-        </FavoritesProvider>
-      </ProductProvider>
+      <CategoryProvider>
+        <ProductProvider>
+          <FavoritesProvider>
+            <CartProvider>
+              <MainLayout />
+            </CartProvider>
+          </FavoritesProvider>
+        </ProductProvider>
+      </CategoryProvider>
     </AuthProvider>
   );
 };

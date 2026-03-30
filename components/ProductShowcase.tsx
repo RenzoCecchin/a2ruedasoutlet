@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CATEGORIES, getColorHex } from '../constants';
+import { getColorHex } from '../constants';
 import { Product, SubcategoryGroup } from '../types';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
 import { useFavorites } from '../context/FavoritesContext';
+import { useCategories } from '../context/CategoryContext';
 
 interface FlyingItem {
   id: number;
@@ -15,7 +16,8 @@ interface FlyingItem {
 
 const ProductShowcase: React.FC = () => {
   const { products } = useProducts(); 
-  const [activeTab, setActiveTab] = useState(CATEGORIES[0].id);
+  const { categories } = useCategories();
+  const [activeTab, setActiveTab] = useState(categories[0]?.id || '');
   // State for hierarchical filtering
   const [activeGroup, setActiveGroup] = useState<SubcategoryGroup | null>(null);
   const [activeSubcategory, setActiveSubcategory] = useState<string>('Todos');
@@ -41,7 +43,7 @@ const ProductShowcase: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const currentCategory = CATEGORIES.find(c => c.id === activeTab);
+  const currentCategory = categories.find(c => c.id === activeTab);
 
   // Initialize active group when category changes
   useEffect(() => {
@@ -493,7 +495,7 @@ const ProductShowcase: React.FC = () => {
           <div className="animate-fade-in">
             {/* Main Categories Tabs (MOTO / PILOTO) */}
             <div className="flex justify-center mb-8 space-x-6">
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => {
