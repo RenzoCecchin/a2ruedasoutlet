@@ -281,7 +281,7 @@ app.post('/api/products/sync-stock', async (req, res) => {
     }
 
     const mapTitleToStock = {};
-    const chunkSize = 20;
+    const chunkSize = 50;
 
     // Helper function for aggressive normalization
     const normalizeString = (str) => {
@@ -293,27 +293,39 @@ app.post('/api/products/sync-stock', async (req, res) => {
         .trim();
     };
 
+    // Prepare all chunks for concurrent fetching
+    const chunkPromises = [];
     for (let i = 0; i < allMlItemIds.length; i += chunkSize) {
       const chunk = allMlItemIds.slice(i, i + chunkSize);
       const url = `https://api.mercadolibre.com/items?ids=${chunk.join(',')}`;
 
-      const response = await fetch(url, {
+      const chunkPromise = fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-
-      data.forEach(itemInfo => {
-        if (itemInfo.code === 200 && itemInfo.body) {
-          const body = itemInfo.body;
-          const titleNormal = normalizeString(body.title);
-          const stock = body.available_quantity;
-
-          if (mapTitleToStock[titleNormal] === undefined || stock > mapTitleToStock[titleNormal]) {
-            mapTitleToStock[titleNormal] = stock;
-          }
-        }
-      });
+      })
+      .then(res => res.json())
+      .catch(err => { console.error('Error fetching ML items chunk:', err); return []; });
+      
+      chunkPromises.push(chunkPromise);
     }
+
+    // Execute concurrently (drastically speeds up total time)
+    const responses = await Promise.all(chunkPromises);
+    
+    responses.forEach(data => {
+      if (Array.isArray(data)) {
+        data.forEach(itemInfo => {
+          if (itemInfo.code === 200 && itemInfo.body) {
+            const body = itemInfo.body;
+            const titleNormal = normalizeString(body.title);
+            const stock = body.available_quantity;
+
+            if (mapTitleToStock[titleNormal] === undefined || stock > mapTitleToStock[titleNormal]) {
+              mapTitleToStock[titleNormal] = stock;
+            }
+          }
+        });
+      }
+    });
 
     // Apply updates
     const updatedProducts = products.map(p => {
