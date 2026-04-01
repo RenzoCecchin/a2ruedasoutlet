@@ -229,7 +229,7 @@ export const db = {
   syncStock: async (products: import('../types').Product[]): Promise<import('../types').Product[]> => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
       const response = await fetch(`${API_URL}/products/sync-stock`, {
         method: 'POST',

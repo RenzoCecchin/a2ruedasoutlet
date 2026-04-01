@@ -267,8 +267,8 @@ app.post('/api/products/sync-stock', async (req, res) => {
     let allMlItemIds = [];
     let offset = 0;
 
-    // Fetch up to 500 items to avoid infinite loops
-    while (offset < 500) {
+    // Fetch up to 2000 items to avoid infinite loops and cover entire inventory
+    while (offset < 2000) {
       const searchRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search?limit=100&offset=${offset}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -276,11 +276,22 @@ app.post('/api/products/sync-stock', async (req, res) => {
       if (!searchData || !searchData.results || searchData.results.length === 0) break;
       allMlItemIds = allMlItemIds.concat(searchData.results);
       if (searchData.results.length < 100) break; // Reached the end
+      if (searchData.paging && offset + 100 >= searchData.paging.total) break;
       offset += 100;
     }
 
     const mapTitleToStock = {};
     const chunkSize = 20;
+
+    // Helper function for aggressive normalization
+    const normalizeString = (str) => {
+      return (str || '')
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/[^a-z0-9]/g, ' ') // replace special chars with space
+        .replace(/\s+/g, ' ') // multiple spaces to single
+        .trim();
+    };
 
     for (let i = 0; i < allMlItemIds.length; i += chunkSize) {
       const chunk = allMlItemIds.slice(i, i + chunkSize);
@@ -294,11 +305,11 @@ app.post('/api/products/sync-stock', async (req, res) => {
       data.forEach(itemInfo => {
         if (itemInfo.code === 200 && itemInfo.body) {
           const body = itemInfo.body;
-          const title = (body.title || '').trim().toLowerCase();
+          const titleNormal = normalizeString(body.title);
           const stock = body.available_quantity;
 
-          if (mapTitleToStock[title] === undefined || stock > mapTitleToStock[title]) {
-            mapTitleToStock[title] = stock;
+          if (mapTitleToStock[titleNormal] === undefined || stock > mapTitleToStock[titleNormal]) {
+            mapTitleToStock[titleNormal] = stock;
           }
         }
       });
@@ -306,17 +317,30 @@ app.post('/api/products/sync-stock', async (req, res) => {
 
     // Apply updates
     const updatedProducts = products.map(p => {
-      const pTitle = (p.name || '').trim().toLowerCase();
-      // Relaxed matching: check if ML title includes our product name or vice-versa
-      // Sometimes ML titles have extra words. But exact match is safest first.
+      const pTitle = normalizeString(p.name);
       let newStock = mapTitleToStock[pTitle];
 
-      // If exact match fails, try finding an ML item that contains the our exact title
+      // If exact match fails, try fuzzy matching based on word intersection
       if (newStock === undefined) {
+        let bestMatchScore = 0;
+        const pWords = pTitle.split(/\s+/).filter(w => w.length > 1);
+
         for (const [mlTitle, stock] of Object.entries(mapTitleToStock)) {
-          if (mlTitle === pTitle || mlTitle.includes(pTitle) || pTitle.includes(mlTitle)) {
-            newStock = stock;
-            break;
+          const mlWords = mlTitle.split(/\s+/).filter(w => w.length > 1);
+          
+          let intersectCount = 0;
+          pWords.forEach(pw => {
+             if(mlWords.includes(pw)) intersectCount++;
+          });
+
+          // Calculate match score: Jaccard-ish index
+          const maxLen = Math.max(pWords.length, mlWords.length);
+          const score = maxLen === 0 ? 0 : intersectCount / maxLen;
+
+          // Threshold: if 65% of the longest string's words match
+          if (score > 0.65 && score > bestMatchScore) {
+             bestMatchScore = score;
+             newStock = stock;
           }
         }
       }
@@ -324,8 +348,7 @@ app.post('/api/products/sync-stock', async (req, res) => {
       if (newStock !== undefined) {
         return { ...p, stock: newStock };
       }
-      return { ...p, stock: 0 }; // If not found in ML, mark as out of stock or just original? 
-      // Better to return 0 or original? The user says "el stock no figura". They want real ML stock. If ML deleted it, stock is 0.
+      return { ...p, stock: p.stock }; // Keep local stock if not found in ML
     });
 
     res.json({ products: updatedProducts });
