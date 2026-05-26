@@ -1,208 +1,56 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import rateLimit from 'express-rate-limit';
 
-// Configuración necesaria para __dirname en ES Modules
+import { connectDB } from './src/config/database.ts';
+import { initializeEmail } from './src/config/email.ts';
+import authRoutes from './src/routes/auth.ts';
+import userRoutes from './src/routes/users.ts';
+import orderRoutes from './src/routes/orders.ts';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3001;
-const DATA_FILE = path.join(__dirname, 'server-data.json');
+const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+);
 app.use(bodyParser.json());
 
-// Helper to read data (Safely wrapped for Vercel Serverless Read-Only limits)
-let memoryData = null; // Fallback to memory if disk fails
-
-const readData = () => {
-  if (memoryData) return memoryData;
-
-  const initialData = {
-    users: [
-      {
-        id: 'admin-1',
-        name: 'Admin MotoElite',
-        email: 'Mica@motos.com',
-        password: 'Mandino',
-        role: 'admin',
-        favorites: []
-      }
-    ],
-    orders: []
-  };
-
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
-      } catch (writeErr) {
-        console.warn('Filesystem is read-only (expected on Vercel). Falling back to memory DB.');
-        memoryData = initialData;
-        return initialData;
-      }
-      return initialData;
-    }
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  } catch (err) {
-    console.warn('Error reading DB, using initial data in memory.', err);
-    memoryData = initialData;
-    return initialData;
-  }
-};
-
-// Helper to write data
-const writeData = (data) => {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    console.warn('Cannot write to disk (Vercel Serverless). Saving to memory only.');
-    memoryData = data;
-  }
-};
-
-// Routes
-
-// 1. Login
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const db = readData();
-
-  const user = db.users.find(u => u.email === email && u.password === password);
-
-  if (user) {
-    // In a production app, we would return a JWT token here.
-    const { password, recoveryCode, recoveryExpires, ...userWithoutPass } = user;
-    res.json(userWithoutPass);
-  } else {
-    res.status(401).json({ message: 'Credenciales inválidas' });
-  }
+// Rate limiting para endpoints sensibles
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // 5 intentos
+  message: 'Demasiados intentos. Intenta de nuevo en 15 minutos.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-// 2. Register
-app.post('/api/auth/register', (req, res) => {
-  const { name, email, password } = req.body;
-  const db = readData();
+// Rutas
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
-  if (db.users.some(u => u.email === email)) {
-    return res.status(400).json({ message: 'El email ya está registrado' });
-  }
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/orders', orderRoutes);
 
-  const newUser = {
-    id: Date.now().toString(),
-    name,
-    email,
-    password,
-    role: 'customer',
-    favorites: [] // Initialize empty favorites
-  };
-
-  db.users.push(newUser);
-  writeData(db);
-
-  const { password: _, ...userWithoutPass } = newUser;
-  res.status(201).json(userWithoutPass);
-});
-
-// 3. Forgot Password (Request Code)
-app.post('/api/auth/forgot-password', (req, res) => {
-  const { email } = req.body;
-  const db = readData();
-
-  const userIndex = db.users.findIndex(u => u.email === email);
-
-  if (userIndex !== -1) {
-    // Generate a 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Save code to user record (expires in 15 mins)
-    db.users[userIndex].recoveryCode = code;
-    db.users[userIndex].recoveryExpires = Date.now() + 15 * 60 * 1000;
-
-    writeData(db);
-
-    // LOG TO CONSOLE (SIMULATING EMAIL SERVICE)
-    console.log('------------------------------------------------');
-    console.log(`🔑 RECUPERACIÓN DE CONTRASEÑA PARA: ${email}`);
-    console.log(`📨 CÓDIGO SIMULADO: ${code}`);
-    console.log('------------------------------------------------');
-
-    res.json({ message: 'Código enviado (Revisa la consola del servidor)' });
-  } else {
-    // Security: Don't reveal if user exists, just say sent
-    res.json({ message: 'Si el email existe, se envió un código.' });
-  }
-});
-
-// 4. Reset Password (Verify Code & Set New Password)
-app.post('/api/auth/reset-password', (req, res) => {
-  const { email, code, newPassword } = req.body;
-  const db = readData();
-
-  const userIndex = db.users.findIndex(u =>
-    u.email === email &&
-    u.recoveryCode === code &&
-    u.recoveryExpires > Date.now()
-  );
-
-  if (userIndex !== -1) {
-    // Update password
-    db.users[userIndex].password = newPassword;
-
-    // Clear recovery data
-    delete db.users[userIndex].recoveryCode;
-    delete db.users[userIndex].recoveryExpires;
-
-    writeData(db);
-
-    res.json({ message: 'Contraseña actualizada correctamente' });
-  } else {
-    res.status(400).json({ message: 'Código inválido o expirado' });
-  }
-});
-
-// 5. Get User Favorites
-app.get('/api/users/:userId/favorites', (req, res) => {
-  const { userId } = req.params;
-  const db = readData();
-  const user = db.users.find(u => u.id === userId);
-
-  if (user) {
-    res.json(user.favorites || []);
-  } else {
-    res.status(404).json({ message: 'Usuario no encontrado' });
-  }
-});
-
-// 6. Update User Favorites
-app.put('/api/users/:userId/favorites', (req, res) => {
-  const { userId } = req.params;
-  const { favorites } = req.body; // Expecting array of strings
-  const db = readData();
-  const userIndex = db.users.findIndex(u => u.id === userId);
-
-  if (userIndex !== -1) {
-    if (!Array.isArray(favorites)) {
-      return res.status(400).json({ message: 'Formato inválido' });
-    }
-    db.users[userIndex].favorites = favorites;
-    writeData(db);
-    res.json({ message: 'Favoritos actualizados', favorites: db.users[userIndex].favorites });
-  } else {
-    res.status(404).json({ message: 'Usuario no encontrado' });
-  }
-});
-// --- MERCADO LIBRE INTEGRATION ---
-const ML_APP_ID = '6903992046026037';
-const ML_CLIENT_SECRET = 'pPyYRkovAZEg2xAYN6rYxCR2y28UrNcf';
+// Mercado Libre Integration
+const ML_APP_ID = process.env.ML_APP_ID || '6903992046026037';
+const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || 'pPyYRkovAZEg2xAYN6rYxCR2y28UrNcf';
 let mlToken = null;
 let mlTokenExpires = 0;
-// AUTH CODE (already exchanged): TG-69c99f61541e3d00015be022-495486730
 
 async function getMLToken() {
   if (mlToken && Date.now() < mlTokenExpires) {
@@ -213,13 +61,13 @@ async function getMLToken() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        Accept: 'application/json',
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: ML_APP_ID,
-        client_secret: ML_CLIENT_SECRET
-      })
+        client_secret: ML_CLIENT_SECRET,
+      }),
     });
     const data = await response.json();
     if (data.access_token) {
@@ -233,7 +81,6 @@ async function getMLToken() {
   return null;
 }
 
-// 7. Sync Stock from Mercado Libre
 app.post('/api/products/sync-stock', async (req, res) => {
   try {
     const { products } = req.body;
@@ -247,14 +94,8 @@ app.post('/api/products/sync-stock', async (req, res) => {
       return res.json({ products });
     }
 
-    // We also need the user_id that comes with the ML token. 
-    // Wait, getMLToken doesn't return user_id. Let's modify it inline or get it.
-    // Since getMLToken only returns token, we can get user_id by parsing the token or calling users/me.
-    // Actually, client_credentials token always returns user_id when you POST /oauth/token.
-    // Since we need user_id, let's fetch it if not cached. 
-    // To not break existing getMLToken, we just do a fetch to users/me with the token.
     const meRes = await fetch('https://api.mercadolibre.com/users/me', {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
     const meData = await meRes.json();
     const userId = meData.id;
@@ -267,15 +108,17 @@ app.post('/api/products/sync-stock', async (req, res) => {
     let allMlItemIds = [];
     let offset = 0;
 
-    // Fetch up to 2000 items to avoid infinite loops and cover entire inventory
     while (offset < 2000) {
-      const searchRes = await fetch(`https://api.mercadolibre.com/users/${userId}/items/search?limit=100&offset=${offset}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const searchRes = await fetch(
+        `https://api.mercadolibre.com/users/${userId}/items/search?limit=100&offset=${offset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       const searchData = await searchRes.json();
       if (!searchData || !searchData.results || searchData.results.length === 0) break;
       allMlItemIds = allMlItemIds.concat(searchData.results);
-      if (searchData.results.length < 100) break; // Reached the end
+      if (searchData.results.length < 100) break;
       if (searchData.paging && offset + 100 >= searchData.paging.total) break;
       offset += 100;
     }
@@ -283,37 +126,38 @@ app.post('/api/products/sync-stock', async (req, res) => {
     const mapTitleToStock = {};
     const chunkSize = 50;
 
-    // Helper function for aggressive normalization
     const normalizeString = (str) => {
       return (str || '')
         .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
-        .replace(/[^a-z0-9]/g, ' ') // replace special chars with space
-        .replace(/\s+/g, ' ') // multiple spaces to single
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
     };
 
-    // Prepare all chunks for concurrent fetching
     const chunkPromises = [];
     for (let i = 0; i < allMlItemIds.length; i += chunkSize) {
       const chunk = allMlItemIds.slice(i, i + chunkSize);
       const url = `https://api.mercadolibre.com/items?ids=${chunk.join(',')}`;
 
       const chunkPromise = fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .then(res => res.json())
-      .catch(err => { console.error('Error fetching ML items chunk:', err); return []; });
-      
+        .then((res) => res.json())
+        .catch((err) => {
+          console.error('Error fetching ML items chunk:', err);
+          return [];
+        });
+
       chunkPromises.push(chunkPromise);
     }
 
-    // Execute concurrently (drastically speeds up total time)
     const responses = await Promise.all(chunkPromises);
-    
-    responses.forEach(data => {
+
+    responses.forEach((data) => {
       if (Array.isArray(data)) {
-        data.forEach(itemInfo => {
+        data.forEach((itemInfo) => {
           if (itemInfo.code === 200 && itemInfo.body) {
             const body = itemInfo.body;
             const titleNormal = normalizeString(body.title);
@@ -327,32 +171,28 @@ app.post('/api/products/sync-stock', async (req, res) => {
       }
     });
 
-    // Apply updates
-    const updatedProducts = products.map(p => {
+    const updatedProducts = products.map((p) => {
       const pTitle = normalizeString(p.name);
       let newStock = mapTitleToStock[pTitle];
 
-      // If exact match fails, try fuzzy matching based on word intersection
       if (newStock === undefined) {
         let bestMatchScore = 0;
-        const pWords = pTitle.split(/\s+/).filter(w => w.length > 1);
+        const pWords = pTitle.split(/\s+/).filter((w) => w.length > 1);
 
         for (const [mlTitle, stock] of Object.entries(mapTitleToStock)) {
-          const mlWords = mlTitle.split(/\s+/).filter(w => w.length > 1);
-          
+          const mlWords = mlTitle.split(/\s+/).filter((w) => w.length > 1);
+
           let intersectCount = 0;
-          pWords.forEach(pw => {
-             if(mlWords.includes(pw)) intersectCount++;
+          pWords.forEach((pw) => {
+            if (mlWords.includes(pw)) intersectCount++;
           });
 
-          // Calculate match score: Jaccard-ish index
           const maxLen = Math.max(pWords.length, mlWords.length);
           const score = maxLen === 0 ? 0 : intersectCount / maxLen;
 
-          // Threshold: if 65% of the longest string's words match
           if (score > 0.65 && score > bestMatchScore) {
-             bestMatchScore = score;
-             newStock = stock;
+            bestMatchScore = score;
+            newStock = stock;
           }
         }
       }
@@ -360,45 +200,54 @@ app.post('/api/products/sync-stock', async (req, res) => {
       if (newStock !== undefined) {
         return { ...p, stock: newStock };
       }
-      return { ...p, stock: p.stock }; // Keep local stock if not found in ML
+      return { ...p, stock: p.stock };
     });
 
     res.json({ products: updatedProducts });
-
   } catch (error) {
     console.error('Error syncing stock:', error);
     res.json({ products: req.body.products || [] });
   }
 });
 
-// --- SERVE STATIC FRONTEND (Optional: if built via npm run build) ---
+// Static files
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Fallback for SPA routing if accessing via Node server
+// SPA fallback
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
     const indexPath = path.join(__dirname, 'dist', 'index.html');
-    if (fs.existsSync(indexPath)) {
+    try {
       res.sendFile(indexPath);
-    } else {
+    } catch {
       res.status(200).send(`
-         <div style="font-family:sans-serif; text-align:center; padding:50px;">
-           <h1>Server Running (API Port ${PORT})</h1>
-           <p>To see the app, please keep this running and open a new terminal to run: <b>npm run dev</b></p>
-         </div>
-       `);
+        <div style="font-family:sans-serif; text-align:center; padding:50px;">
+          <h1>A2 Ruedas Server Running</h1>
+          <p>API: http://localhost:${PORT}/api</p>
+        </div>
+      `);
     }
   }
 });
 
-// Start Server only if not running in a Vercel serverless environment
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`✅ Backend Server running at http://localhost:${PORT}`);
-    console.log(`👤 Admin Account: Mica@motos.com / Mandino`);
-    console.log(`ℹ️  Note: Frontend runs separately via "npm run dev"`);
-  });
+// Start server y conectar a BD
+async function startServer() {
+  try {
+    await connectDB();
+    initializeEmail();
+
+    if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`✅ Backend running at http://localhost:${PORT}`);
+        console.log(`📚 API: http://localhost:${PORT}/api`);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 }
 
-// Export for Vercel Serverless
+startServer();
+
 export default app;

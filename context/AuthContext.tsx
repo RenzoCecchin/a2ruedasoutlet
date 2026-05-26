@@ -6,8 +6,9 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  verifyEmail: (email: string, token: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<void>;
-  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
+  resetPassword: (email: string, token: string, newPassword: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -22,7 +23,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Initialize session from local storage (Client side persistence)
+  // Initialize session from local storage
   useEffect(() => {
     const sessionUser = db.getSession();
     if (sessionUser) {
@@ -40,22 +41,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = async (name: string, email: string, password: string) => {
-    const newUser = await db.register({ name, email, password });
-    if (newUser) {
-      setUser(newUser);
-      db.setSession(newUser);
-      closeAuthModal();
-    }
+    const result = await db.register({ name, email, password });
+    // Usuario se registra pero debe verificar email antes de poder hacer login
+  };
+
+  const verifyEmail = async (email: string, token: string) => {
+    await db.verifyEmail(email, token);
   };
 
   const recoverPassword = async (email: string) => {
-    // Requests the code from server
+    // Solicita token de reset por email
     await db.requestPasswordReset(email);
   };
 
-  const resetPassword = async (email: string, code: string, newPassword: string) => {
-    // Sends code + new password to server
-    await db.confirmPasswordReset(email, code, newPassword);
+  const resetPassword = async (email: string, token: string, newPassword: string) => {
+    // Valida token + contraseña
+    await db.confirmPasswordReset(email, token, newPassword);
   };
 
   const logout = () => {
@@ -71,6 +72,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user,
       login,
       register,
+      verifyEmail,
       recoverPassword,
       resetPassword,
       logout,
