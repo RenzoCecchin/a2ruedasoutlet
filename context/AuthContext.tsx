@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = async (name: string, email: string, password: string) => {
-    const result = await db.register({ name, email, password });
+    const result = await db.register({ name, email, password } as any);
     // Usuario se registra pero debe verificar email antes de poder hacer login
   };
 

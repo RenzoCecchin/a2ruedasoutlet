@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { User } from './src/models/User';
+import { User } from '../src/models/User';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
