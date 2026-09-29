@@ -47,8 +47,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 
 // Mercado Libre Integration
-const ML_APP_ID = process.env.ML_APP_ID || '6903992046026037';
-const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || 'pPyYRkovAZEg2xAYN6rYxCR2y28UrNcf';
+const ML_APP_ID = process.env.ML_APP_ID || '';
+const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET || '';
 let mlToken = null;
 let mlTokenExpires = 0;
 

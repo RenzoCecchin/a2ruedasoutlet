@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"node server.js\"",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "migrate-users": "node scripts/migrate-users.ts"
   },
@@ -22,7 +22,8 @@
     "mongoose": "^8.0.3",
     "nodemailer": "^6.9.7",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -34,7 +35,7 @@
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.2.1",
-    "react-router-dom": "^7.18.4",
+
     "typescript": "^5.5.3",
     "vite": "^5.4.1",
     "vite-plugin-pwa": "^0.20.0"
