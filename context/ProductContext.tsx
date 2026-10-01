@@ -13,7 +13,7 @@ interface ProductContextType {
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'a2ruedas_inventory_v1';
+const STORAGE_KEY = 'a2ruedas_inventory_v2';
 
 export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Initialize state lazy-loading from localStorage or falling back to constants

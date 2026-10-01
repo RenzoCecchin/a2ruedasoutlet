@@ -87,17 +87,27 @@ const ProductShowcase: React.FC = () => {
     }
     
     // Filter by Main Category (MOTO/PILOTO)
-    if (currentCategory?.name !== p.category) return false;
+    if (currentCategory?.name.toLowerCase() !== p.category.toLowerCase()) return false;
 
     // Filter by Active Group
     if (!activeGroup) return false;
     
+    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const pSubNorm = normalize(p.subcategory || '');
+    const groupNorm = normalize(activeGroup.name || '');
+
     // Check if product's subcategory belongs to the active group
-    const belongsToGroup = activeGroup.items.includes(p.subcategory);
+    const belongsToGroup = activeGroup.items.some(
+      item => normalize(item) === pSubNorm
+    ) || groupNorm === pSubNorm;
+    
     if (!belongsToGroup) return false;
 
     // Filter by specific subcategory if selected (and not 'Todos')
-    if (activeSubcategory !== 'Todos' && p.subcategory !== activeSubcategory) return false;
+    if (activeSubcategory !== 'Todos') {
+      const activeSubNorm = normalize(activeSubcategory);
+      if (pSubNorm !== activeSubNorm) return false;
+    }
 
     return true;
   });
@@ -560,7 +570,7 @@ const ProductShowcase: React.FC = () => {
                       <button
                         key={sub}
                         onClick={() => setActiveSubcategory(sub)}
-                        className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors capitalize ${
                           activeSubcategory === sub
                             ? 'bg-moto-green text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

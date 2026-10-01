@@ -16,7 +16,7 @@ interface CategoryContextType {
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'a2ruedas_categories_v1';
+const STORAGE_KEY = 'a2ruedas_categories_v2';
 
 export const CategoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Category[]>(() => {
